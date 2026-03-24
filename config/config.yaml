@@ -7,6 +7,9 @@ sources:
     # Network drive path mapped inside container
     - "/data/archive/story"
     - "/data/archive/knowledge"
+    # Upload inbox – files dropped here via the web UI are ingested immediately
+    # by the API but also rescanned here on every worker cycle as a safety net
+    - "/data/archive/inbox"
   
   exclude:
     - "**/node_modules/**"

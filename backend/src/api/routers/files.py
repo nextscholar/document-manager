@@ -2,6 +2,7 @@
 Files API Router
 Handles files, entries, images, series, links, and enrichment configuration.
 """
+import logging
 import os
 import mimetypes
 import json
@@ -19,7 +20,10 @@ from src.db.models import RawFile, Entry
 from src.db.settings import get_setting
 from src.enrich.inherit_doc_metadata import inherit_doc_metadata_batch
 from src.extract.extractors import THUMBNAIL_DIR
+from src.ingest.ingest_files import ingest_file
 from src.llm_client import list_vision_models, VISION_MODEL, describe_image
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["files"])
 
@@ -111,6 +115,14 @@ async def upload_files(
 
         dest.write_bytes(content)
         saved.append({"filename": dest.name, "path": str(dest), "size_bytes": len(content)})
+
+        # Immediately ingest the file into the database so it is visible in the
+        # Browse page right away without waiting for the next worker cycle.
+        try:
+            ingest_file(db, dest)
+        except Exception as exc:
+            # Non-fatal: the background worker will pick it up on the next run.
+            logger.warning("Immediate ingest of %s failed (%s); worker will retry", dest.name, exc)
 
     return {"uploaded": saved, "count": len(saved)}
 
