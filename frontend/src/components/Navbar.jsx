@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom'
 import { Search, FolderOpen, Activity, Menu, X, ScrollText, BookOpen, Settings, Orbit, AlertCircle, CheckCircle, AlertTriangle, ChevronDown, Image, Gauge } from 'lucide-react'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { UserButton } from '@stackframe/react'
 import styles from './Navbar.module.css'
 import Logo from './Logo'
 import { NotificationBell } from './Notifications'
@@ -275,6 +276,11 @@ function Navbar() {
                 </button>
               </div>
             )}
+          </div>
+
+          {/* User account button */}
+          <div className={styles.userButton}>
+            <UserButton />
           </div>
         </div>
       </div>

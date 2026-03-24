@@ -405,3 +405,9 @@
 .healthRefresh:hover {
   background: var(--color-bg-hover);
 }
+
+.userButton {
+  display: flex;
+  align-items: center;
+  margin-left: var(--spacing-sm);
+}
