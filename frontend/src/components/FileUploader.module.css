@@ -1,0 +1,28 @@
+.file-uploader {
+  border: 2px dashed #0070f3;
+  padding: 20px;
+  text-align: center;
+  background-color: #f0f4ff;
+  transition: background-color 0.3s;
+}
+
+.file-uploader:hover {
+  background-color: #e6f0ff;
+}
+
+.file-uploader input[type="file"] {
+  display: none;
+}
+
+.file-uploader label {
+  display: inline-block;
+  padding: 10px 20px;
+  background-color: #0070f3;
+  color: white;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.file-uploader .uploaded-files {
+  margin-top: 10px;
+}
