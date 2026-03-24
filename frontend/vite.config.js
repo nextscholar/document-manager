@@ -19,7 +19,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: process.env.VITE_API_TARGET || 'http://backend:8000',
+        target: process.env.VITE_API_TARGET || 'http://api:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         timeout: 60000,
