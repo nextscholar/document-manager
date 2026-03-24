@@ -155,6 +155,9 @@ eggs/
 .eggs/
 lib/
 lib64/
+
+# Allow frontend src/lib (stack auth helpers, etc.)
+!frontend/src/lib/
 parts/
 sdist/
 var/
