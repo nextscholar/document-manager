@@ -19,7 +19,7 @@ services:
   api:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.worker
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER:-appuser}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-appdb}
