@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import { StackHandler } from '@stackframe/react'
+import { StackHandler, useUser } from '@stackframe/react'
 import { stackApp } from './lib/stack.js'
 import Navbar from './components/Navbar'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -18,6 +18,13 @@ import Settings from './pages/settings'
 import EntryInspector from './pages/EntryInspector'
 import EmbeddingViz from './pages/EmbeddingViz'
 import Setup from './pages/Setup'
+
+// Component that redirects unauthenticated users to sign-in
+function ProtectedRoute({ children }) {
+  const user = useUser({ or: 'redirect' })
+  if (!user) return null
+  return children
+}
 
 // Component that handles first-run detection and redirect
 function FirstRunRedirect({ children }) {
@@ -72,20 +79,20 @@ function App() {
               <div style={{ paddingTop: '60px' }}>
                 <Routes>
                   <Route path="/handler/*" element={<StackHandler app={stackApp} fullPage />} />
-                  <Route path="/" element={<Home />} />
                   <Route path="/setup" element={<Setup />} />
-                  <Route path="/browse" element={<Browse />} />
-                  <Route path="/files" element={<Navigate to="/browse?tab=files" replace />} />
-                  <Route path="/gallery" element={<Navigate to="/browse?tab=images" replace />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/logs" element={<Logs />} />
-                  <Route path="/how-it-works" element={<HowItWorks />} />
-                  <Route path="/settings" element={<Settings />} />
-                  <Route path="/document/:id" element={<DocumentView />} />
-                  <Route path="/resolve" element={<ResolveLink />} />
-                  <Route path="/entry" element={<EntryInspector />} />
-                  <Route path="/entry/:entryId" element={<EntryInspector />} />
-                  <Route path="/embeddings" element={<EmbeddingViz />} />
+                  <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+                  <Route path="/browse" element={<ProtectedRoute><Browse /></ProtectedRoute>} />
+                  <Route path="/files" element={<ProtectedRoute><Navigate to="/browse?tab=files" replace /></ProtectedRoute>} />
+                  <Route path="/gallery" element={<ProtectedRoute><Navigate to="/browse?tab=images" replace /></ProtectedRoute>} />
+                  <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                  <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
+                  <Route path="/how-it-works" element={<ProtectedRoute><HowItWorks /></ProtectedRoute>} />
+                  <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+                  <Route path="/document/:id" element={<ProtectedRoute><DocumentView /></ProtectedRoute>} />
+                  <Route path="/resolve" element={<ProtectedRoute><ResolveLink /></ProtectedRoute>} />
+                  <Route path="/entry" element={<ProtectedRoute><EntryInspector /></ProtectedRoute>} />
+                  <Route path="/entry/:entryId" element={<ProtectedRoute><EntryInspector /></ProtectedRoute>} />
+                  <Route path="/embeddings" element={<ProtectedRoute><EmbeddingViz /></ProtectedRoute>} />
                 </Routes>
               </div>
             </FirstRunRedirect>
