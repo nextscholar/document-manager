@@ -1,7 +1,8 @@
 import { StackClientApp } from '@stackframe/react'
 
-const projectId = import.meta.env.STACK_PROJECT_ID
-const publishableClientKey = import.meta.env.STACK_PUBLISHABLE_CLIENT_KEY
+const projectURL = import.meta.env.NEXT_PUBLIC_STACK_API_URL
+const projectId = import.meta.env.NEXT_PUBLIC_STACK_PROJECT_ID
+const publishableClientKey = import.meta.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY
 
 if (!projectId || !publishableClientKey) {
   throw new Error(
@@ -11,6 +12,7 @@ if (!projectId || !publishableClientKey) {
 
 export const stackApp = new StackClientApp({
   projectId,
+  projectURL,
   publishableClientKey,
   tokenStore: 'cookie',
   urls: {
