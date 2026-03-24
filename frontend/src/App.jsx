@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { StackHandler } from '@stackframe/react'
+import { stackApp } from './lib/stack.js'
 import Navbar from './components/Navbar'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ToastContainer } from './components/Notifications'
@@ -69,6 +71,7 @@ function App() {
               <Navbar />
               <div style={{ paddingTop: '60px' }}>
                 <Routes>
+                  <Route path="/handler/*" element={<StackHandler app={stackApp} fullPage />} />
                   <Route path="/" element={<Home />} />
                   <Route path="/setup" element={<Setup />} />
                   <Route path="/browse" element={<Browse />} />

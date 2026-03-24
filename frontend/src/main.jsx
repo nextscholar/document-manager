@@ -1,6 +1,8 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
+import { StackProvider, StackTheme } from '@stackframe/react'
 import App from './App.jsx'
+import { stackApp } from './lib/stack.js'
 import './index.css'
 
 // Unregister any stale service workers from previous configurations
@@ -14,5 +16,9 @@ if ('serviceWorker' in navigator) {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <App />
+  <StackProvider app={stackApp}>
+    <StackTheme>
+      <App />
+    </StackTheme>
+  </StackProvider>
 )
