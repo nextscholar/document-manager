@@ -1,7 +1,7 @@
 import { StackClientApp } from '@stackframe/react'
 
-const projectId = import.meta.env.VITE_STACK_PROJECT_ID
-const publishableClientKey = import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY
+const projectId = import.meta.env.STACK_PROJECT_ID
+const publishableClientKey = import.meta.env.STACK_PUBLISHABLE_CLIENT_KEY
 
 if (!projectId || !publishableClientKey) {
   throw new Error(
