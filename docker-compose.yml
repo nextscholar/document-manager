@@ -18,7 +18,7 @@ services:
 
   api:
     build:
-      context: ./backend   # ✅ fixed here
+      context: ./backend
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
@@ -27,21 +27,6 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    networks:
-      - app_net
-
-  worker:
-    build:
-      context: ./worker
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://${DB_USER:-appuser}:${DB_PASSWORD:-changeme}@db:5432/${DB_NAME:-appdb}
-    depends_on:
-      db:
-        condition: service_healthy
-    volumes:
-      - worker_shared:/shared
     networks:
       - app_net
 
@@ -57,7 +42,6 @@ services:
 
 volumes:
   postgres_data:
-  worker_shared:
 
 networks:
   app_net:
