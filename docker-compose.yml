@@ -61,6 +61,7 @@ services:
     restart: unless-stopped
     volumes:
       - worker_shared:/app/shared
+      - /root/test_paper:/app/shared/documents
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
@@ -91,6 +92,7 @@ services:
     restart: unless-stopped
     volumes:
       - worker_shared:/app/shared
+      - /root/test_paper:/app/shared/documents
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
