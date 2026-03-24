@@ -38,6 +38,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # (not including API code, frontend, or unnecessary files)
 COPY src/__init__.py src/
 COPY src/config.py src/
+COPY src/constants.py src/
 COPY src/llm_client.py src/
 COPY src/status.py src/
 COPY src/worker_loop.py src/
