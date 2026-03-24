@@ -8,7 +8,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text, and_, or_, func
@@ -49,8 +49,71 @@ class EnrichmentConfigUpdate(BaseModel):
 
 
 # ============================================================================
+# Upload Constants
+# ============================================================================
+
+MAX_UPLOAD_FILES = 10
+MAX_UPLOAD_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
+
+# Determine the upload inbox directory.  Prefer the env-var UPLOAD_DIR so it
+# can be overridden in docker-compose; fall back to /data/archive/inbox which
+# is always inside the mounted archive volume.
+UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/data/archive/inbox")
+
+
+# ============================================================================
 # Files Endpoints
 # ============================================================================
+
+@router.post("/files/upload")
+async def upload_files(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload up to 10 files (each ≤ 1 MB) into the archive inbox directory."""
+    if len(files) > MAX_UPLOAD_FILES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"You can upload at most {MAX_UPLOAD_FILES} files at once.",
+        )
+
+    # Validate sizes before writing anything to disk; keep bytes in memory
+    file_contents: List[bytes] = []
+    for upload in files:
+        content = await upload.read()
+        if len(content) > MAX_UPLOAD_SIZE_BYTES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{upload.filename}' exceeds the 1 MB size limit.",
+            )
+        file_contents.append(content)
+
+    # Ensure the inbox directory exists
+    inbox = Path(UPLOAD_DIR)
+    try:
+        inbox.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Could not create upload directory: {exc}",
+        )
+
+    saved = []
+    for upload, content in zip(files, file_contents):
+        dest = inbox / Path(upload.filename).name  # strip any path component
+        # Avoid overwriting – append a counter if needed
+        counter = 1
+        stem = dest.stem
+        suffix = dest.suffix
+        while dest.exists():
+            dest = inbox / f"{stem}_{counter}{suffix}"
+            counter += 1
+
+        dest.write_bytes(content)
+        saved.append({"filename": dest.name, "path": str(dest), "size_bytes": len(content)})
+
+    return {"uploaded": saved, "count": len(saved)}
+
 
 @router.get("/files")
 async def list_files(

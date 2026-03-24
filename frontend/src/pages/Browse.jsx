@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { 
   FileText, Image, X, ChevronLeft, ChevronRight, Eye, Wand2, 
-  ZoomIn, Loader2, RefreshCw, FolderOpen, Grid, List, Filter
+  ZoomIn, Loader2, RefreshCw, FolderOpen, Grid, List, Filter, Upload
 } from 'lucide-react'
 import styles from './Browse.module.css'
+import FileUploader from '../components/FileUploader'
 
 // Tab types
 const TABS = {
@@ -25,6 +26,7 @@ function Browse() {
   const [viewMode, setViewMode] = useState('list') // 'list' or 'grid'
   const [sortBy, setSortBy] = useState('created_at-desc') // Sort option for files
   const [imageSortBy, setImageSortBy] = useState('created_at-desc') // Sort option for images
+  const [showUploader, setShowUploader] = useState(false)
   
   // Files state
   const [files, setFiles] = useState([])
@@ -268,9 +270,29 @@ function Browse() {
               </select>
             </>
           )}
-
+          <button
+            className={`${styles.uploadToggleBtn} ${showUploader ? styles.active : ''}`}
+            onClick={() => setShowUploader(v => !v)}
+            title={showUploader ? 'Close uploader' : 'Upload files'}
+          >
+            <Upload size={16} />
+            Upload
+          </button>
         </div>
       </div>
+
+      {/* Inline upload panel */}
+      {showUploader && (
+        <div className={styles.uploaderPanel}>
+          <div className={styles.uploaderPanelHeader}>
+            <span>Upload Files</span>
+            <button className={styles.uploaderCloseBtn} onClick={() => setShowUploader(false)} title="Close">
+              <X size={16} />
+            </button>
+          </div>
+          <FileUploader onUploadSuccess={() => { fetchFiles(); fetchCounts(); }} />
+        </div>
+      )}
 
       {/* Files Tab Content */}
       {activeTab === TABS.FILES && (

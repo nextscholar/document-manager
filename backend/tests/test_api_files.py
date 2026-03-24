@@ -148,3 +148,62 @@ def test_health_endpoint(client: TestClient):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
+
+
+# ============================================================================
+# Upload endpoint tests
+# ============================================================================
+
+@pytest.mark.api
+def test_upload_files_success(client: TestClient, mock_db_session, tmp_path, monkeypatch):
+    """Test successful file upload."""
+    monkeypatch.setattr("src.api.routers.files.UPLOAD_DIR", str(tmp_path))
+
+    content = b"hello world"
+    response = client.post(
+        "/files/upload",
+        files=[("files", ("test.txt", content, "text/plain"))],
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 1
+    assert data["uploaded"][0]["filename"] == "test.txt"
+    # File should exist on disk
+    assert (tmp_path / "test.txt").exists()
+
+
+@pytest.mark.api
+def test_upload_files_too_large(client: TestClient, mock_db_session, tmp_path, monkeypatch):
+    """Test that files exceeding 1 MB are rejected."""
+    monkeypatch.setattr("src.api.routers.files.UPLOAD_DIR", str(tmp_path))
+
+    oversized = b"x" * (1024 * 1024 + 1)  # 1 byte over the limit
+    response = client.post(
+        "/files/upload",
+        files=[("files", ("big.bin", oversized, "application/octet-stream"))],
+    )
+    assert response.status_code == 400
+    assert "1 MB" in response.json()["detail"]
+
+
+@pytest.mark.api
+def test_upload_files_too_many(client: TestClient, mock_db_session, tmp_path, monkeypatch):
+    """Test that uploading more than 10 files at once is rejected."""
+    monkeypatch.setattr("src.api.routers.files.UPLOAD_DIR", str(tmp_path))
+
+    files = [("files", (f"file{i}.txt", b"data", "text/plain")) for i in range(11)]
+    response = client.post("/files/upload", files=files)
+    assert response.status_code == 400
+    assert "10" in response.json()["detail"]
+
+
+@pytest.mark.api
+def test_upload_files_multiple(client: TestClient, mock_db_session, tmp_path, monkeypatch):
+    """Test uploading multiple valid files."""
+    monkeypatch.setattr("src.api.routers.files.UPLOAD_DIR", str(tmp_path))
+
+    files = [("files", (f"doc{i}.txt", b"content", "text/plain")) for i in range(3)]
+    response = client.post("/files/upload", files=files)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["count"] == 3
