@@ -5,7 +5,7 @@ const publishableClientKey = import.meta.env.STACK_PUBLISHABLE_CLIENT_KEY
 
 if (!projectId || !publishableClientKey) {
   throw new Error(
-    'Missing Stack Auth configuration. Set VITE_STACK_PROJECT_ID and VITE_STACK_PUBLISHABLE_CLIENT_KEY in your .env file.'
+    'Missing Stack Auth configuration. Set STACK_PROJECT_ID and STACK_PUBLISHABLE_CLIENT_KEY in your .env file.'
   )
 }
 
