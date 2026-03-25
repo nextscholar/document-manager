@@ -1,6 +1,7 @@
 import { StackClientApp } from '@stackframe/react'
 
 const projectId = import.meta.env.VITE_STACK_PROJECT_ID
+const ViteStackApiURL = import.meta.env.VITE_STACK_API_URL
 const publishableClientKey = import.meta.env.VITE_STACK_PUBLISHABLE_CLIENT_KEY
 
 if (!projectId || !publishableClientKey) {
@@ -12,6 +13,7 @@ if (!projectId || !publishableClientKey) {
 export const stackApp = new StackClientApp({
   projectId,
   publishableClientKey,
+  baseUrl: ViteStackApiURL,
   tokenStore: 'cookie',
   urls: {
     signIn: '/handler/sign-in',
