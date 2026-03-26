@@ -11,10 +11,42 @@ from sqlalchemy import text
 from pydantic import BaseModel
 
 from src.db.session import get_db
-from src.db.models import Entry, RawFile
-from src.llm_client import embed_text, generate_text, MODEL
+from src.db.models import Entry, RawFile, LLMProvider
+from src.llm_client import embed_text, generate_text, MODEL, LLMClient
 from src.rag.search import search_entries_semantic, search_two_stage
 from src.api.auth import get_current_user
+
+
+def _get_cloud_client(db: Session, model_str: Optional[str]):
+    """
+    Parse a 'provider/model' string and return (LLMClient, model_name).
+    Returns (None, model_str) if not in cloud format or provider not found.
+    """
+    if not model_str or '/' not in model_str:
+        return None, model_str
+
+    provider_type, model_name = model_str.split('/', 1)
+
+    provider = (
+        db.query(LLMProvider)
+        .filter(
+            LLMProvider.provider_type == provider_type,
+            LLMProvider.enabled == True,
+        )
+        .order_by(LLMProvider.priority.desc(), LLMProvider.id)
+        .first()
+    )
+
+    if not provider or not provider.api_key:
+        return None, model_name
+
+    config = {
+        'provider': provider_type,
+        'api_key': provider.api_key,
+        'url': provider.url or '',
+        'model': model_name,
+    }
+    return LLMClient(config), model_name
 
 router = APIRouter(tags=["search"])
 

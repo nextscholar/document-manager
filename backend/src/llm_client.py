@@ -917,6 +917,11 @@ def generate_text(prompt: str, model: str = MODEL) -> Optional[str]:
     if MOCK_MODE:
         return "This is a mock answer based on the retrieved documents."
 
+    # Use multi-provider client if available and has providers configured
+    global _multi_provider_client
+    if _multi_provider_client and _multi_provider_client.providers:
+        return _multi_provider_client.generate_text(prompt, model)
+
     url = f"{OLLAMA_URL}/api/generate"
     
     payload = {
