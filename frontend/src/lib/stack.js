@@ -15,6 +15,7 @@ export const stackApp = new StackClientApp({
   publishableClientKey,
   baseUrl: ViteStackApiURL,
   tokenStore: 'cookie',
+  redirectMethod: 'window',
   urls: {
     signIn: '/handler/sign-in',
     signUp: '/handler/sign-up',
