@@ -10,6 +10,9 @@ sources:
     # Upload inbox – files dropped here via the web UI are ingested immediately
     # by the API but also rescanned here on every worker cycle as a safety net
     - "/data/archive/inbox"
+    # General documents directory – used by the docker-compose volume mount
+    # (e.g. /root/test_paper:/data/archive/documents)
+    - "/data/archive/documents"
   
   exclude:
     - "**/node_modules/**"

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Search, BookOpen, FileText, Server, Info, Zap, Type, Layers, Target, WifiOff, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useConnectionStatus } from '../hooks/useConnectionStatus'
+import { apiFetch } from '../lib/api'
 import styles from './Home.module.css'
 
 function Home() {
@@ -88,7 +89,7 @@ function Home() {
       // Use two-stage search for better performance on large collections
       if (searchMode === 'two_stage') {
         // Two-stage: first get search results, then ask with those results
-        const searchRes = await fetch('/api/search/two-stage', {
+        const searchRes = await apiFetch('/api/search/two-stage', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -120,7 +121,7 @@ function Home() {
             `Document ${i+1}:\nTitle: ${e.title || 'Untitled'}\nContent: ${e.entry_text}\n`
           ).join('\n')
           
-          const askRes = await fetch('/api/chat', {
+          const askRes = await apiFetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -149,12 +150,12 @@ function Home() {
       } else {
         // Fetch explained search results if explainer is on
         if (showExplainer) {
-          const explainRes = await fetch(`/api/search/explain?query=${encodeURIComponent(query)}&k=${numResults}&mode=${searchMode}`)
+          const explainRes = await apiFetch(`/api/search/explain?query=${encodeURIComponent(query)}&k=${numResults}&mode=${searchMode}`)
           const explainData = await explainRes.json()
           setSearchExplanation(explainData)
         }
 
-        const response = await fetch('/api/ask', {
+        const response = await apiFetch('/api/ask', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
