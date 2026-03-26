@@ -806,13 +806,27 @@ function Dashboard() {
         <div className={styles.miniCard}>
           <FileText size={18} color="#646cff" />
           <div>
-            <span className={styles.miniLabel}>Files</span>
+            <span className={styles.miniLabel}>Files Processed</span>
             {counts ? (
               <span className={styles.miniValue}>
                 {counts.files.processed?.toLocaleString()} / {counts.files.total?.toLocaleString()}
               </span>
             ) : (
               <Skeleton width="5rem" height="1.2rem" />
+            )}
+          </div>
+        </div>
+
+        <div className={styles.miniCard}>
+          <ArrowRight size={18} color="#ffc517" />
+          <div>
+            <span className={styles.miniLabel}>Files Remaining</span>
+            {counts ? (
+              <span className={`${styles.miniValue} ${(counts.files.total - counts.files.processed) > 0 ? styles.remainingActive : ''}`}>
+                {(counts.files.total - counts.files.processed)?.toLocaleString()}
+              </span>
+            ) : (
+              <Skeleton width="3rem" height="1.2rem" />
             )}
           </div>
         </div>
@@ -834,20 +848,39 @@ function Dashboard() {
       {/* Background Jobs Panel */}
       <JobsPanel showRecent={true} maxRecent={5} compact={true} />
 
-      {/* Recent Files - Lazy loaded */}
+      {/* Recent Files - Lazy loaded with per-file progress */}
       {recentFiles && recentFiles.length > 0 && (
         <div className={styles.recentSection}>
           <h3>Recent Files</h3>
           <div className={styles.recentList}>
-            {recentFiles.map(file => (
-              <Link to={`/document/${file.id}`} key={file.id} className={styles.recentItem}>
-                <FileText size={14} />
-                <span className={styles.recentName}>{file.filename}</span>
-                <span className={`${styles.recentStatus} ${styles[file.status]}`}>
-                  {file.status}
-                </span>
-              </Link>
-            ))}
+            {recentFiles.map(file => {
+              // Map doc_status to a 0-100 progress value across 3 stages
+              const docSteps = ['pending', 'enriched', 'embedded']
+              const stepIdx = docSteps.indexOf(file.doc_status)
+              const docProgress = stepIdx < 0 ? 0 : Math.round(((stepIdx + 1) / docSteps.length) * 100)
+              const isError = file.status === 'extract_failed'
+
+              return (
+                <Link to={`/document/${file.id}`} key={file.id} className={styles.recentItem}>
+                  <FileText size={14} />
+                  <span className={styles.recentName}>{file.filename}</span>
+                  {!isError && (
+                    <div className={styles.fileProgress} title={`Pipeline: ${file.doc_status || 'pending'}`}>
+                      <div className={styles.fileProgressTrack}>
+                        <div
+                          className={styles.fileProgressFill}
+                          style={{ width: `${docProgress}%` }}
+                        />
+                      </div>
+                      <span className={styles.fileProgressLabel}>{file.doc_status || 'pending'}</span>
+                    </div>
+                  )}
+                  <span className={`${styles.recentStatus} ${styles[file.status]}`}>
+                    {file.status === 'ok' ? 'extracted' : file.status}
+                  </span>
+                </Link>
+              )
+            })}
           </div>
         </div>
       )}

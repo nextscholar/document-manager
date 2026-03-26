@@ -451,8 +451,13 @@ def get_recent_files(db: Session = Depends(get_db), limit: int = 10):
     """Recent files - can be loaded lazily."""
     recent_files = db.query(RawFile).order_by(RawFile.created_at.desc()).limit(limit).all()
     return [
-        {"id": f.id, "filename": f.filename, "status": f.status, 
-         "created_at": f.created_at.isoformat() if f.created_at else None}
+        {
+            "id": f.id,
+            "filename": f.filename,
+            "status": f.status,
+            "doc_status": f.doc_status or "pending",
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        }
         for f in recent_files
     ]
 

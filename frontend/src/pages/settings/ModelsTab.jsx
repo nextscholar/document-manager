@@ -321,7 +321,7 @@ export default function ModelsTab({
                   ))}
               </optgroup>
             ) : null}
-            {cloudProviders.filter(p => ['openai', 'anthropic', 'google'].includes(p.provider_type)).map(provider => (
+            {cloudProviders.filter(p => ['openai', 'anthropic', 'google', 'qwen', 'zhipu'].includes(p.provider_type)).map(provider => (
               <optgroup key={provider.id} label={`${provider.name} Vision`}>
                 {provider.provider_type === 'openai' && (
                   <>
@@ -337,6 +337,15 @@ export default function ModelsTab({
                 )}
                 {provider.provider_type === 'google' && (
                   <option value="google/gemini-pro-vision">gemini-pro-vision</option>
+                )}
+                {provider.provider_type === 'qwen' && (
+                  <>
+                    <option value="qwen/qwen-vl-max">qwen-vl-max</option>
+                    <option value="qwen/qwen-vl-plus">qwen-vl-plus</option>
+                  </>
+                )}
+                {provider.provider_type === 'zhipu' && (
+                  <option value="zhipu/glm-4v">glm-4v</option>
                 )}
               </optgroup>
             ))}

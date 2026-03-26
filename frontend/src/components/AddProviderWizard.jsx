@@ -55,6 +55,40 @@ const PROVIDER_TYPES = {
     provider_type: 'anthropic',
     url: 'https://api.anthropic.com',
     models: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229']
+  },
+  // ── Chinese cloud providers ──────────────────────────────────────────────
+  qwen: {
+    id: 'qwen',
+    name: 'Qwen (Alibaba)',
+    description: 'Qwen-Max, Qwen-Plus, Qwen-Turbo — chat & embeddings',
+    icon: Zap,
+    provider_type: 'qwen',
+    url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyLink: { label: 'DashScope Console', href: 'https://dashscope.console.aliyun.com/apiKey' },
+    models: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-max-latest', 'text-embedding-v3']
+  },
+  deepseek: {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    description: 'DeepSeek-Chat (V3), DeepSeek-Reasoner (R1)',
+    icon: Zap,
+    provider_type: 'deepseek',
+    url: 'https://api.deepseek.com/v1',
+    apiKeyPlaceholder: 'sk-...',
+    apiKeyLink: { label: 'DeepSeek Platform', href: 'https://platform.deepseek.com/api_keys' },
+    models: ['deepseek-chat', 'deepseek-reasoner']
+  },
+  zhipu: {
+    id: 'zhipu',
+    name: 'Zhipu AI (GLM)',
+    description: 'GLM-4-Plus, GLM-4-Air, GLM-4-Flash, GLM-4V vision',
+    icon: Cloud,
+    provider_type: 'zhipu',
+    url: 'https://open.bigmodel.cn/api/paas/v4',
+    apiKeyPlaceholder: '…your Zhipu API key…',
+    apiKeyLink: { label: 'Zhipu Open Platform', href: 'https://open.bigmodel.cn/usercenter/apikeys' },
+    models: ['glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4v', 'embedding-3']
   }
 }
 
@@ -279,6 +313,27 @@ export default function AddProviderWizard({ isOpen, onClose, onSuccess }) {
                   })}
                 </div>
               </div>
+
+              <div className={styles.typeSection}>
+                <h4>🇨🇳 Chinese Cloud APIs</h4>
+                <div className={styles.typeCards}>
+                  {['qwen', 'deepseek', 'zhipu'].map(id => {
+                    const t = PROVIDER_TYPES[id]
+                    const Icon = t.icon
+                    return (
+                      <button 
+                        key={id} 
+                        className={styles.typeCard}
+                        onClick={() => selectType(id)}
+                      >
+                        <Icon size={24} />
+                        <strong>{t.name}</strong>
+                        <span>{t.description}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -351,7 +406,7 @@ export default function AddProviderWizard({ isOpen, onClose, onSuccess }) {
                     type={showApiKey ? 'text' : 'password'}
                     value={config.api_key}
                     onChange={e => setConfig(prev => ({ ...prev, api_key: e.target.value }))}
-                    placeholder={type.provider_type === 'openai' ? 'sk-...' : 'sk-ant-...'}
+                    placeholder={type.apiKeyPlaceholder || (type.provider_type === 'anthropic' ? 'sk-ant-...' : 'sk-...')}
                   />
                   <button onClick={() => setShowApiKey(!showApiKey)}>
                     {showApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -359,16 +414,19 @@ export default function AddProviderWizard({ isOpen, onClose, onSuccess }) {
                 </div>
                 <small>
                   Get your API key from{' '}
-                  {type.provider_type === 'openai' && (
-                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">
+                  {type.apiKeyLink ? (
+                    <a href={type.apiKeyLink.href} target="_blank" rel="noopener noreferrer">
+                      {type.apiKeyLink.label} <ExternalLink size={12} />
+                    </a>
+                  ) : type.provider_type === 'openai' ? (
+                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">
                       OpenAI Dashboard <ExternalLink size={12} />
                     </a>
-                  )}
-                  {type.provider_type === 'anthropic' && (
-                    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+                  ) : type.provider_type === 'anthropic' ? (
+                    <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
                       Anthropic Console <ExternalLink size={12} />
                     </a>
-                  )}
+                  ) : null}
                 </small>
               </div>
             )}
