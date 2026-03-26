@@ -61,6 +61,9 @@ def search_docs_stage1(
         if filters.get('extension'):
             filter_sql += " AND rf.extension = :ext_filter"
             params['ext_filter'] = filters['extension']
+        if filters.get('uploaded_by'):
+            filter_sql += " AND (rf.uploaded_by = :uploaded_by OR rf.uploaded_by IS NULL)"
+            params['uploaded_by'] = filters['uploaded_by']
     
     # Use Reciprocal Rank Fusion (RRF) with k=RRF_K
     # RRF score = 1/(k + vector_rank) + 1/(k + keyword_rank)
@@ -316,18 +319,26 @@ def search_keyword_only(db: Session, query: str, k: int = 10, filters: dict = No
     """
     # Build the tsquery from the search query
     search_query = ' & '.join(query.split())  # Convert to AND query
+
+    filter_sql = ""
+    params: dict = {"query": query, "limit": k}
+
+    if filters and filters.get('uploaded_by'):
+        filter_sql = " AND (rf.uploaded_by = :uploaded_by OR rf.uploaded_by IS NULL)"
+        params['uploaded_by'] = filters['uploaded_by']
     
-    sql = text("""
+    sql = text(f"""
         SELECT e.id, 
                ts_rank_cd(e.search_vector, plainto_tsquery('english', :query)) as rank
         FROM entries e
         JOIN raw_files rf ON e.file_id = rf.id
         WHERE e.search_vector @@ plainto_tsquery('english', :query)
+        {filter_sql}
         ORDER BY rank DESC
         LIMIT :limit
     """)
     
-    results = db.execute(sql, {"query": query, "limit": k}).fetchall()
+    results = db.execute(sql, params).fetchall()
     return [{"id": r[0], "keyword_score": float(r[1])} for r in results]
 
 
@@ -346,7 +357,9 @@ def search_entries_semantic(
         db: Database session
         query: Search query string
         k: Number of results to return
-        filters: Optional filters (tags, author, extension, category, date_start, date_end)
+        filters: Optional filters (tags, author, extension, category, date_start, date_end,
+                 uploaded_by – when set, restricts results to files owned by that user OR
+                 files with no owner (uploaded_by IS NULL, i.e. worker-ingested files))
         mode: Search mode - 'vector', 'keyword', or 'hybrid'
         vector_weight: Weight for vector score in hybrid mode (0-1), keyword gets (1-vector_weight)
     
@@ -392,26 +405,63 @@ def search_entries_semantic(
                 stmt = stmt.filter(Entry.created_hint >= filters['date_start'])
             if filters.get('date_end'):
                 stmt = stmt.filter(Entry.created_hint <= filters['date_end'])
+            if filters.get('uploaded_by'):
+                from sqlalchemy import or_
+                stmt = stmt.filter(
+                    or_(RawFile.uploaded_by == filters['uploaded_by'],
+                        RawFile.uploaded_by.is_(None))
+                )
         
         results = stmt.order_by(Entry.embedding.cosine_distance(q_emb)).limit(k).all()
         return results
     
     # Hybrid mode: Combine vector similarity with BM25 keyword ranking
     keyword_weight = 1.0 - vector_weight
-    
-    # Use raw SQL for hybrid ranking
-    # This query computes both vector distance and keyword rank, then combines them
-    sql = text("""
+
+    # Build optional filter clauses for the hybrid SQL query
+    filter_sql = ""
+    params: dict = {
+        "embedding": str(q_emb),
+        "query": query,
+        "vector_weight": vector_weight,
+        "keyword_weight": keyword_weight,
+        "limit": k
+    }
+
+    if filters:
+        if filters.get('author'):
+            filter_sql += " AND e.author ILIKE :author_filter"
+            params['author_filter'] = f"%{filters['author']}%"
+        if filters.get('extension'):
+            filter_sql += " AND rf.extension = :ext_filter"
+            params['ext_filter'] = filters['extension']
+        if filters.get('category'):
+            filter_sql += " AND e.category ILIKE :cat_filter"
+            params['cat_filter'] = f"%{filters['category']}%"
+        if filters.get('uploaded_by'):
+            filter_sql += " AND (rf.uploaded_by = :uploaded_by OR rf.uploaded_by IS NULL)"
+            params['uploaded_by'] = filters['uploaded_by']
+
+    # Use raw SQL for hybrid ranking.
+    # JOIN with raw_files so that per-file filter conditions can be applied.
+    sql = text(f"""
         WITH vector_scores AS (
             SELECT e.id, 
                    1.0 - (e.embedding <=> :embedding) as vector_score
             FROM entries e
+            JOIN raw_files rf ON e.file_id = rf.id
             WHERE e.embedding IS NOT NULL
+            {filter_sql}
         ),
         keyword_scores AS (
             SELECT e.id,
                    COALESCE(ts_rank_cd(e.search_vector, plainto_tsquery('english', :query)), 0) as keyword_score
             FROM entries e
+            JOIN raw_files rf ON e.file_id = rf.id
+            -- WHERE 1=1 is a placeholder so that optional filter_sql (each clause
+            -- starts with AND) can be appended without special-casing the first filter.
+            WHERE 1=1
+            {filter_sql}
         ),
         combined AS (
             SELECT 
@@ -427,13 +477,7 @@ def search_entries_semantic(
         SELECT id, vector_score, keyword_score, combined_score FROM combined
     """)
     
-    results = db.execute(sql, {
-        "embedding": str(q_emb),
-        "query": query,
-        "vector_weight": vector_weight,
-        "keyword_weight": keyword_weight,
-        "limit": k
-    }).fetchall()
+    results = db.execute(sql, params).fetchall()
     
     # Fetch the actual Entry objects
     entry_ids = [r[0] for r in results]

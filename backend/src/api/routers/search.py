@@ -14,6 +14,7 @@ from src.db.session import get_db
 from src.db.models import Entry, RawFile
 from src.llm_client import embed_text, generate_text, MODEL
 from src.rag.search import search_entries_semantic, search_two_stage
+from src.api.auth import get_current_user
 
 router = APIRouter(tags=["search"])
 
@@ -71,7 +72,7 @@ class TwoStageSearchRequest(BaseModel):
 # ============================================================================
 
 @router.post("/ask", response_model=AskResponse)
-def ask(request: AskRequest, db: Session = Depends(get_db)):
+def ask(request: AskRequest, db: Session = Depends(get_db), user_id: Optional[str] = Depends(get_current_user)):
     """Answer questions using semantic search and LLM generation."""
     # 1. Search with configurable mode
     search_mode = request.search_mode or 'hybrid'
@@ -79,12 +80,18 @@ def ask(request: AskRequest, db: Session = Depends(get_db)):
     
     # Fetch extra results for deduplication
     fetch_k = request.k * 3  # Fetch 3x results to ensure we have enough after dedup
+
+    # Scope search to the authenticated user's files plus globally available files
+    # (files ingested by the worker with no owner have uploaded_by = NULL)
+    filters = dict(request.filters or {})
+    if user_id:
+        filters['uploaded_by'] = user_id
     
     results = search_entries_semantic(
         db, 
         request.query, 
         k=fetch_k, 
-        filters=request.filters or {},
+        filters=filters,
         mode=search_mode,
         vector_weight=vector_weight
     )
@@ -263,7 +270,8 @@ def search_with_explanation(
 @router.post("/search/two-stage")
 def search_two_stage_endpoint(
     request: TwoStageSearchRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user)
 ):
     """
     Two-stage retrieval for large collections.
@@ -271,12 +279,16 @@ def search_two_stage_endpoint(
     Stage 1: Search doc-level embeddings to find relevant documents (fast, ~125k docs).
     Stage 2: Search chunk-level embeddings within top N docs (precise, filtered set).
     """
+    filters = dict(request.filters or {})
+    if user_id:
+        filters['uploaded_by'] = user_id
+
     result = search_two_stage(
         db=db,
         query=request.query,
         k=request.k,
         stage1_docs=request.stage1_docs,
-        filters=request.filters or {}
+        filters=filters
     )
     
     # Serialize entries

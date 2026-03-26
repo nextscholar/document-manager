@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { 
   ArrowLeft, RefreshCw, Filter, Clock, FileText, Layers, Sparkles, 
   Binary, AlertCircle, CheckCircle, Info, ChevronDown, ChevronUp,
@@ -51,7 +51,6 @@ function Logs() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showFilters, setShowFilters] = useState(true)
   const [autoScroll, setAutoScroll] = useState(true)
-  const [stats, setStats] = useState({ total: 0, info: 0, warning: 0, error: 0 })
   const logsEndRef = useRef(null)
   const containerRef = useRef(null)
 
@@ -159,15 +158,6 @@ function Logs() {
       
       setParsedLogs(parsed)
       
-      // Calculate stats
-      const newStats = { total: parsed.length, info: 0, warning: 0, error: 0 }
-      parsed.forEach(log => {
-        if (log.level === 'INFO') newStats.info++
-        else if (log.level === 'WARNING') newStats.warning++
-        else if (log.level === 'ERROR') newStats.error++
-      })
-      setStats(newStats)
-      
       setLoading(false)
     } catch (err) {
       console.error('Error fetching logs:', err)
@@ -191,12 +181,30 @@ function Logs() {
   }, [parsedLogs, autoScroll])
 
   // Filter logs
-  const filteredLogs = parsedLogs.filter(log => {
+  const filteredLogs = useMemo(() => parsedLogs.filter(log => {
     if (stageFilter !== 'all' && log.stage !== stageFilter) return false
     if (levelFilter !== 'all' && log.level !== levelFilter) return false
     if (searchQuery && !log.message.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
-  })
+  }), [parsedLogs, stageFilter, levelFilter, searchQuery])
+
+  // Stats derived from stage+search-filtered logs so clicking a level button
+  // always shows exactly stats.[level] results (level filter is NOT applied here).
+  const stats = useMemo(() => {
+    const s = { total: 0, info: 0, warning: 0, error: 0 }
+    const stageFiltered = parsedLogs.filter(log => {
+      if (stageFilter !== 'all' && log.stage !== stageFilter) return false
+      if (searchQuery && !log.message.toLowerCase().includes(searchQuery.toLowerCase())) return false
+      return true
+    })
+    s.total = stageFiltered.length
+    stageFiltered.forEach(log => {
+      if (log.level === 'INFO') s.info++
+      else if (log.level === 'WARNING') s.warning++
+      else if (log.level === 'ERROR') s.error++
+    })
+    return s
+  }, [parsedLogs, stageFilter, searchQuery])
 
   const getLogClass = (log) => {
     const classes = [styles.logLine]
