@@ -123,12 +123,15 @@ def test_get_file_metadata(client: TestClient, mock_db_session, sample_file, sam
 
 
 @pytest.mark.api
-def test_file_text_extraction_unsupported(client: TestClient, mock_db_session):
+def test_file_text_extraction_unsupported(client: TestClient, mock_db_session, tmp_path):
     """Test text extraction for unsupported file types."""
-    # Create mock file with unsupported extension
+    # Create a real file on disk so the endpoint's existence check passes
+    real_file = tmp_path / "sample.xyz"
+    real_file.write_bytes(b"binary content")
+
     unsupported_file = Mock()
     unsupported_file.id = 999
-    unsupported_file.path = "/test/sample.xyz"
+    unsupported_file.path = str(real_file)
     unsupported_file.filename = "sample.xyz"
     unsupported_file.extension = ".xyz"
     unsupported_file.file_type = "unknown"

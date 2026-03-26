@@ -14,6 +14,9 @@ from fastapi.testclient import TestClient
 
 from src.api.main import app
 
+# Stable user ID used in tests that exercise authenticated endpoints.
+TEST_USER_ID = "test-user-123"
+
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_ollama_mode():
@@ -49,8 +52,11 @@ def mock_db_session(mocker):
         query_mock.scalar.return_value = 0
         return query_mock
 
-    # Make query() return a fresh mock each time
-    mock_session.query.side_effect = lambda *args: create_query_mock()
+    # Use a single shared mock so tests can configure return values via
+    # mock_session.query.return_value.filter.return_value.first.return_value = X.
+    # Tests that need call-specific behavior can override with their own
+    # mock_session.query.side_effect; that takes precedence over return_value.
+    mock_session.query.return_value = create_query_mock()
 
     # Mock common session methods
     mock_session.add = MagicMock()
@@ -69,14 +75,20 @@ def client(mock_db_session):
     Create a test client with mocked database dependency.
 
     The database session is overridden to use our mock,
-    so no real database is needed.
+    so no real database is needed.  get_current_user is also overridden
+    to return TEST_USER_ID so that authenticated endpoints work in tests.
     """
     from src.db.session import get_db
+    from src.api.auth import get_current_user
 
     def override_get_db():
         yield mock_db_session
 
+    def override_get_current_user():
+        return TEST_USER_ID
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_user] = override_get_current_user
 
     with TestClient(app) as test_client:
         yield test_client

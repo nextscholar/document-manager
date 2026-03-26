@@ -130,6 +130,8 @@ async def upload_files(
             logger.warning("Immediate ingest of %s failed (%s); worker will retry", dest.name, exc)
 
         # Tag the record with the uploader so users only see their own files.
+        # Only set uploaded_by when it is unset; do not override existing ownership
+        # (e.g. if the background worker already tagged the record).
         try:
             raw = db.query(RawFile).filter(RawFile.path == str(dest)).first()
             if raw is not None and raw.uploaded_by is None:
