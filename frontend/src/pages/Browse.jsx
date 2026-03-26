@@ -6,6 +6,7 @@ import {
 } from 'lucide-react'
 import styles from './Browse.module.css'
 import FileUploader from '../components/FileUploader'
+import { apiFetch } from '../lib/api'
 
 // Tab types
 const TABS = {
@@ -58,8 +59,8 @@ function Browse() {
   const fetchCounts = useCallback(async () => {
     try {
       const [filesRes, imagesRes] = await Promise.all([
-        fetch('/api/files?skip=0&limit=1'),
-        fetch('/api/images?skip=0&limit=1')
+        apiFetch('/api/files?skip=0&limit=1'),
+        apiFetch('/api/images?skip=0&limit=1')
       ])
       const filesData = await filesRes.json()
       const imagesData = await imagesRes.json()
@@ -78,7 +79,7 @@ function Browse() {
     try {
       const skip = (filesPage - 1) * filesLimit
       const [sortField, sortDir] = sortBy.split('-')
-      const res = await fetch(`/api/files?skip=${skip}&limit=${filesLimit}&sort_by=${sortField}&sort_dir=${sortDir}`)
+      const res = await apiFetch(`/api/files?skip=${skip}&limit=${filesLimit}&sort_by=${sortField}&sort_dir=${sortDir}`)
       const data = await res.json()
       setFiles(data.files || [])
       setFilesTotal(data.total || 0)
@@ -103,7 +104,7 @@ function Browse() {
         url += `&sort_by=${field}&sort_order=${order}`
       }
       
-      const res = await fetch(url)
+      const res = await apiFetch(url)
       const data = await res.json()
       setImages(data.items || [])
       setImagesTotal(data.total || 0)
@@ -154,7 +155,7 @@ function Browse() {
   const analyzeImage = async (imageId) => {
     setAnalyzing(true)
     try {
-      const res = await fetch(`/api/images/${imageId}/analyze`, {
+      const res = await apiFetch(`/api/images/${imageId}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: selectedModel })

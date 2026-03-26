@@ -38,6 +38,10 @@ numpy==2.3.5
 scikit-learn==1.8.0
 umap-learn==0.5.9.post2
 
+# Stack Auth JWT validation (see https://docs.stack-auth.com/concepts/backend-integration)
+PyJWT==2.12.0
+cryptography==46.0.5
+
 # Testing
 pytest==9.0.2
 pytest-asyncio==1.3.0
