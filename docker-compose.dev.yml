@@ -178,6 +178,9 @@ services:
       - OLLAMA_MOCK=${OLLAMA_MOCK:-false}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2:1.5b}
       - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - STACK_PROJECT_ID=${STACK_PROJECT_ID:-}
+      - STACK_SECRET_SERVER_KEY=${STACK_SECRET_SERVER_KEY:-}
+      - STACK_API_URL=${STACK_API_URL:-https://api.stack-auth.com}
     depends_on:
       ollama-dev:
         condition: service_healthy
