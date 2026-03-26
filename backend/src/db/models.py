@@ -92,6 +92,10 @@ class RawFile(Base):
     series_number = Column(Integer)  # Part/chapter number in series
     series_total = Column(Integer)  # Total parts if known (e.g., "1 of 5")
     
+    # Owner – Stack Auth user ID of the person who uploaded this file via the web UI.
+    # NULL for files ingested by the background worker from the filesystem.
+    uploaded_by = Column(Text, index=True)
+
     # Source and author normalization (for partitioning/filtering)
     source = Column(Text)  # e.g., 'story', 'docs' - derived from path
     author_key = Column(Text)  # Normalized author (lowercase, trimmed)

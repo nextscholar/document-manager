@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { UploadCloud, X, FileText, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import styles from './FileUploader.module.css';
+import { apiFetch } from '../lib/api';
 
 const MAX_FILES = 10;
 const MAX_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -80,7 +81,7 @@ const FileUploader = ({ onUploadSuccess }) => {
     pendingFiles.forEach((f) => form.append('files', f));
 
     try {
-      const res = await fetch('/api/files/upload', { method: 'POST', body: form });
+      const res = await apiFetch('/api/files/upload', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) {
         setErrors([data.detail || 'Upload failed.']);

@@ -22,6 +22,7 @@ from src.enrich.inherit_doc_metadata import inherit_doc_metadata_batch
 from src.extract.extractors import THUMBNAIL_DIR
 from src.ingest.ingest_files import ingest_file
 from src.llm_client import list_vision_models, VISION_MODEL, describe_image
+from src.api.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
@@ -73,8 +74,12 @@ UPLOAD_DIR = os.environ.get("UPLOAD_DIR", "/data/archive/inbox")
 async def upload_files(
     files: List[UploadFile] = File(...),
     db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
 ):
     """Upload up to 10 files (each ≤ 1 MB) into the archive inbox directory."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
     if len(files) > MAX_UPLOAD_FILES:
         raise HTTPException(
             status_code=400,
@@ -124,6 +129,15 @@ async def upload_files(
             # Non-fatal: the background worker will pick it up on the next run.
             logger.warning("Immediate ingest of %s failed (%s); worker will retry", dest.name, exc)
 
+        # Tag the record with the uploader so users only see their own files.
+        try:
+            raw = db.query(RawFile).filter(RawFile.path == str(dest)).first()
+            if raw is not None and raw.uploaded_by is None:
+                raw.uploaded_by = user_id
+                db.commit()
+        except Exception as exc:
+            logger.warning("Could not set uploaded_by on %s: %s", dest.name, exc)
+
     return {"uploaded": saved, "count": len(saved)}
 
 
@@ -131,11 +145,15 @@ async def upload_files(
 async def list_files(
     skip: int = 0, limit: int = 50, extension: Optional[str] = None,
     sort_by: str = 'modified_at', sort_dir: str = 'desc',
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
 ):
-    """List files with pagination and filtering."""
-    query = db.query(RawFile)
-    
+    """List files with pagination and filtering. Returns only files owned by the authenticated user."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    query = db.query(RawFile).filter(RawFile.uploaded_by == user_id)
+
     if extension:
         query = query.filter(RawFile.extension == extension)
     
