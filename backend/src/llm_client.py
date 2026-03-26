@@ -57,38 +57,149 @@ OPENAI_EMBEDDING_MODEL = os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-s
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-haiku-20240307")
 
+# Qwen (Alibaba Cloud DashScope) settings
+QWEN_API_KEY = os.getenv("QWEN_API_KEY", "")
+QWEN_API_BASE = os.getenv("QWEN_API_BASE", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+QWEN_MODEL = os.getenv("QWEN_MODEL", "qwen-plus")
+QWEN_EMBEDDING_MODEL = os.getenv("QWEN_EMBEDDING_MODEL", "text-embedding-v3")
+
+# DeepSeek settings
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+DEEPSEEK_API_BASE = os.getenv("DEEPSEEK_API_BASE", "https://api.deepseek.com/v1")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+
+# Zhipu AI (GLM) settings
+ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY", "")
+ZHIPU_API_BASE = os.getenv("ZHIPU_API_BASE", "https://open.bigmodel.cn/api/paas/v4")
+ZHIPU_MODEL = os.getenv("ZHIPU_MODEL", "glm-4-air")
+ZHIPU_EMBEDDING_MODEL = os.getenv("ZHIPU_EMBEDDING_MODEL", "embedding-3")
+
+# Providers that share the OpenAI-compatible chat/completions + embeddings API
+OPENAI_COMPATIBLE_PROVIDERS = {"openai", "qwen", "deepseek", "zhipu"}
+
 # Known vision-capable models
 VISION_MODELS = {'llava', 'llava:7b', 'llava:13b', 'llava:34b', 'llama3.2-vision', 'bakllava', 'moondream', 'gpt-4o', 'gpt-4o-mini', 'gpt-4-vision-preview'}
 
 
 class LLMClient:
-    """Multi-provider LLM client with support for Ollama, OpenAI, and Anthropic."""
-    
+    """Multi-provider LLM client with support for Ollama, OpenAI, Anthropic, Qwen, DeepSeek, and Zhipu AI."""
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         """
         Initialize the LLM client.
-        
+
         Args:
             config: Optional configuration dict with provider settings.
                    If None, uses environment variables.
         """
         self.config = config or {}
         self.provider = self.config.get("provider", "ollama")
-        
+
         # Ollama settings
         self.ollama_url = self.config.get("url") or OLLAMA_URL
         self.ollama_model = self.config.get("model") or MODEL
         self.ollama_embedding_model = self.config.get("embedding_model") or EMBEDDING_MODEL
         self.ollama_vision_model = self.config.get("vision_model") or VISION_MODEL
-        
+
         # OpenAI settings
         self.openai_api_key = self.config.get("api_key") or OPENAI_API_KEY
         self.openai_model = self.config.get("model") or OPENAI_MODEL
         self.openai_embedding_model = self.config.get("embedding_model") or OPENAI_EMBEDDING_MODEL
-        
-        # Anthropic settings  
+
+        # Anthropic settings
         self.anthropic_api_key = self.config.get("api_key") or ANTHROPIC_API_KEY
         self.anthropic_model = self.config.get("model") or ANTHROPIC_MODEL
+
+        # Qwen (Alibaba Cloud DashScope) settings – OpenAI-compatible
+        self.qwen_api_key = self.config.get("api_key") or QWEN_API_KEY
+        self.qwen_api_base = (self.config.get("url") or QWEN_API_BASE).rstrip("/")
+        self.qwen_model = self.config.get("model") or QWEN_MODEL
+        self.qwen_embedding_model = self.config.get("embedding_model") or QWEN_EMBEDDING_MODEL
+
+        # DeepSeek settings – OpenAI-compatible
+        self.deepseek_api_key = self.config.get("api_key") or DEEPSEEK_API_KEY
+        self.deepseek_api_base = (self.config.get("url") or DEEPSEEK_API_BASE).rstrip("/")
+        self.deepseek_model = self.config.get("model") or DEEPSEEK_MODEL
+
+        # Zhipu AI (GLM) settings – OpenAI-compatible
+        self.zhipu_api_key = self.config.get("api_key") or ZHIPU_API_KEY
+        self.zhipu_api_base = (self.config.get("url") or ZHIPU_API_BASE).rstrip("/")
+        self.zhipu_model = self.config.get("model") or ZHIPU_MODEL
+        self.zhipu_embedding_model = self.config.get("embedding_model") or ZHIPU_EMBEDDING_MODEL
+
+    # ------------------------------------------------------------------
+    # Internal helper: reusable OpenAI-compatible call (used by Qwen,
+    # DeepSeek, Zhipu in addition to OpenAI itself)
+    # ------------------------------------------------------------------
+
+    def _openai_compat_generate_json(
+        self, prompt: str, api_key: str, base_url: str, model: str
+    ) -> Optional[Dict[str, Any]]:
+        """Call an OpenAI-compatible /chat/completions endpoint and return parsed JSON."""
+        try:
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            content = response.json()["choices"][0]["message"]["content"]
+            return json.loads(content)
+        except Exception as e:
+            logger.error(f"OpenAI-compat JSON generation failed ({base_url}): {e}")
+            return None
+
+    def _openai_compat_generate_text(
+        self, prompt: str, api_key: str, base_url: str, model: str
+    ) -> Optional[str]:
+        """Call an OpenAI-compatible /chat/completions endpoint and return text."""
+        try:
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=120,
+            )
+            response.raise_for_status()
+            return response.json()["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error(f"OpenAI-compat text generation failed ({base_url}): {e}")
+            return None
+
+    def _openai_compat_embed(
+        self, text: str, api_key: str, base_url: str, model: str
+    ) -> Optional[List[float]]:
+        """Call an OpenAI-compatible /embeddings endpoint."""
+        prompt = _sanitize_embedding_prompt(text, EMBEDDING_MAX_CHARS)
+        try:
+            response = requests.post(
+                f"{base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": model, "input": prompt},
+                timeout=30,
+            )
+            response.raise_for_status()
+            return response.json()["data"][0]["embedding"]
+        except Exception as e:
+            logger.error(f"OpenAI-compat embedding failed ({base_url}): {e}")
+            return None
 
     def generate_json(self, prompt: str, model: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Generate JSON response from LLM."""
@@ -96,6 +207,18 @@ class LLMClient:
             return self._openai_generate_json(prompt, model)
         elif self.provider == "anthropic":
             return self._anthropic_generate_json(prompt, model)
+        elif self.provider == "qwen":
+            return self._openai_compat_generate_json(
+                prompt, self.qwen_api_key, self.qwen_api_base, model or self.qwen_model
+            )
+        elif self.provider == "deepseek":
+            return self._openai_compat_generate_json(
+                prompt, self.deepseek_api_key, self.deepseek_api_base, model or self.deepseek_model
+            )
+        elif self.provider == "zhipu":
+            return self._openai_compat_generate_json(
+                prompt, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_model
+            )
         else:
             return self._ollama_generate_json(prompt, model)
 
@@ -105,6 +228,18 @@ class LLMClient:
             return self._openai_generate_text(prompt, model)
         elif self.provider == "anthropic":
             return self._anthropic_generate_text(prompt, model)
+        elif self.provider == "qwen":
+            return self._openai_compat_generate_text(
+                prompt, self.qwen_api_key, self.qwen_api_base, model or self.qwen_model
+            )
+        elif self.provider == "deepseek":
+            return self._openai_compat_generate_text(
+                prompt, self.deepseek_api_key, self.deepseek_api_base, model or self.deepseek_model
+            )
+        elif self.provider == "zhipu":
+            return self._openai_compat_generate_text(
+                prompt, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_model
+            )
         else:
             return self._ollama_generate_text(prompt, model)
 
@@ -112,17 +247,35 @@ class LLMClient:
         """Generate text embeddings."""
         if self.provider == "openai":
             return self._openai_embed(text, model)
+        elif self.provider == "qwen":
+            return self._openai_compat_embed(
+                text, self.qwen_api_key, self.qwen_api_base, model or self.qwen_embedding_model
+            )
+        elif self.provider == "zhipu":
+            return self._openai_compat_embed(
+                text, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_embedding_model
+            )
         else:
-            # Anthropic doesn't have embeddings, fall back to Ollama
+            # Anthropic and DeepSeek don't have embedding endpoints; fall back to Ollama
             return self._ollama_embed(text, model)
 
     def describe_image(self, image_path: str, model: Optional[str] = None, prompt: Optional[str] = None) -> Optional[str]:
         """Describe an image using vision model."""
         default_prompt = "Describe this image in detail. Include any visible text, objects, people, settings, colors, and notable features."
         prompt = prompt or default_prompt
-        
+
         if self.provider == "openai":
             return self._openai_describe_image(image_path, model, prompt)
+        elif self.provider in ("qwen", "zhipu"):
+            # Both Qwen and Zhipu expose vision via OpenAI-compatible multimodal chat
+            if self.provider == "qwen":
+                return self._openai_compat_describe_image(
+                    image_path, self.qwen_api_key, self.qwen_api_base, model or self.qwen_model, prompt
+                )
+            else:
+                return self._openai_compat_describe_image(
+                    image_path, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_model, prompt
+                )
         else:
             return self._ollama_describe_image(image_path, model, prompt)
 
@@ -320,23 +473,23 @@ class LLMClient:
         if not self.openai_api_key:
             logger.error("OpenAI API key not configured")
             return None
-            
+
         model = model or "gpt-4o"
-        
+
         try:
             path = Path(image_path)
             if not path.exists():
                 logger.error(f"Image not found: {image_path}")
                 return None
-            
+
             with open(path, 'rb') as f:
                 image_data = base64.b64encode(f.read()).decode('utf-8')
-            
+
             # Determine mime type
             ext = path.suffix.lower()
             mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
             mime_type = mime_types.get(ext, 'image/jpeg')
-            
+
             response = requests.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -363,6 +516,54 @@ class LLMClient:
             return description
         except Exception as e:
             logger.error(f"OpenAI vision failed: {e}")
+            return None
+
+    def _openai_compat_describe_image(
+        self, image_path: str, api_key: str, base_url: str, model: str, prompt: str = ""
+    ) -> Optional[str]:
+        """Describe an image via any OpenAI-compatible multimodal chat endpoint."""
+        if not api_key:
+            logger.error(f"API key not configured for vision ({base_url})")
+            return None
+
+        try:
+            path = Path(image_path)
+            if not path.exists():
+                logger.error(f"Image not found: {image_path}")
+                return None
+
+            with open(path, 'rb') as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
+
+            ext = path.suffix.lower()
+            mime_types = {'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp'}
+            mime_type = mime_types.get(ext, 'image/jpeg')
+
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [{
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt},
+                            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_data}"}},
+                        ],
+                    }],
+                    "max_tokens": 1000,
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            description = response.json()["choices"][0]["message"]["content"]
+            logger.info(f"Generated description ({len(description)} chars) for {path.name} via {base_url}")
+            return description
+        except Exception as e:
+            logger.error(f"OpenAI-compat vision failed ({base_url}): {e}")
             return None
 
     # ==================== Anthropic Methods ====================

@@ -19,8 +19,28 @@ PROVIDER_OLLAMA = 'ollama'
 PROVIDER_OPENAI = 'openai'
 PROVIDER_ANTHROPIC = 'anthropic'
 PROVIDER_GOOGLE = 'google'
+PROVIDER_QWEN = 'qwen'          # Alibaba Cloud Qwen / DashScope
+PROVIDER_DEEPSEEK = 'deepseek'  # DeepSeek AI
+PROVIDER_ZHIPU = 'zhipu'        # Zhipu AI (GLM / ChatGLM)
 
-CLOUD_PROVIDERS = [PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GOOGLE]
+# Default API endpoints for each provider
+PROVIDER_DEFAULT_URLS = {
+    PROVIDER_OPENAI: 'https://api.openai.com/v1',
+    PROVIDER_ANTHROPIC: 'https://api.anthropic.com',
+    PROVIDER_QWEN: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    PROVIDER_DEEPSEEK: 'https://api.deepseek.com/v1',
+    PROVIDER_ZHIPU: 'https://open.bigmodel.cn/api/paas/v4',
+}
+
+CLOUD_PROVIDERS = [
+    PROVIDER_OPENAI, PROVIDER_ANTHROPIC, PROVIDER_GOOGLE,
+    PROVIDER_QWEN, PROVIDER_DEEPSEEK, PROVIDER_ZHIPU,
+]
+
+# Providers that use an OpenAI-compatible /chat/completions + /models API
+OPENAI_COMPATIBLE_PROVIDERS = [
+    PROVIDER_OPENAI, PROVIDER_QWEN, PROVIDER_DEEPSEEK, PROVIDER_ZHIPU,
+]
 
 
 def get_all_servers(db: Session, enabled_only: bool = False) -> List[LLMProvider]:
@@ -365,20 +385,181 @@ def check_anthropic_health(db: Session, server_id: int, timeout: int = 10) -> Di
     return result
 
 
+def check_openai_compatible_health(
+    db: Session,
+    server_id: int,
+    timeout: int = 10,
+    provider_type: str = PROVIDER_OPENAI,
+    models_list: Optional[List[str]] = None,
+    capabilities: Optional[Dict[str, bool]] = None,
+) -> Dict[str, Any]:
+    """
+    Generic health check for providers that expose an OpenAI-compatible API.
+    Used by Qwen (DashScope), DeepSeek, and Zhipu AI in addition to OpenAI itself.
+    """
+    server = get_server(db, server_id)
+    if not server:
+        return {"success": False, "error": "Provider not found"}
+
+    default_caps = {"chat": True, "embedding": False, "vision": False}
+    caps = capabilities or default_caps
+
+    result = {
+        "server_id": server_id,
+        "name": server.name,
+        "url": server.url,
+        "connected": False,
+        "models": models_list or [],
+        "capabilities": caps,
+        "error": None,
+    }
+
+    if not server.api_key:
+        result["error"] = "API key not configured"
+        server.status = "unconfigured"
+        server.status_message = result["error"]
+        db.commit()
+        return result
+
+    try:
+        base_url = server.url or PROVIDER_DEFAULT_URLS.get(provider_type, "")
+        base_url = base_url.rstrip("/")
+
+        # Build auth header (all these providers use Bearer token auth)
+        headers = {
+            "Authorization": f"Bearer {server.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        # Try the /models endpoint first (OpenAI-compatible)
+        try:
+            resp = requests.get(f"{base_url}/models", headers=headers, timeout=timeout)
+            if resp.status_code == 200:
+                data = resp.json()
+                fetched = [m.get("id") for m in data.get("data", [])]
+                if fetched:
+                    result["models"] = fetched
+                result["connected"] = True
+                server.status = "online"
+                server.status_message = None
+                server.models_available = result["models"]
+                server.capabilities = result["capabilities"]
+                server.last_health_check = datetime.now(timezone.utc)
+                db.commit()
+                return result
+        except Exception:
+            pass  # Fall through to a chat-based probe
+
+        # Some providers (e.g. Zhipu) may not expose /models; probe with a chat call
+        probe_model = server.default_model or (result["models"][0] if result["models"] else None)
+        if probe_model:
+            resp = requests.post(
+                f"{base_url}/chat/completions",
+                headers=headers,
+                json={
+                    "model": probe_model,
+                    "messages": [{"role": "user", "content": "hi"}],
+                    "max_tokens": 1,
+                },
+                timeout=timeout,
+            )
+            # Any non-401 response means connectivity is OK
+            if resp.status_code in (200, 400, 422):
+                result["connected"] = True
+                server.status = "online"
+                server.status_message = None
+                server.models_available = result["models"]
+                server.capabilities = result["capabilities"]
+            elif resp.status_code == 401:
+                result["error"] = "Invalid API key"
+                server.status = "error"
+                server.status_message = result["error"]
+            else:
+                result["error"] = f"HTTP {resp.status_code}"
+                server.status = "error"
+                server.status_message = result["error"]
+        else:
+            result["error"] = "No model specified for health probe"
+            server.status = "unconfigured"
+            server.status_message = result["error"]
+
+    except requests.Timeout:
+        result["error"] = "Connection timed out"
+        server.status = "offline"
+        server.status_message = result["error"]
+    except requests.ConnectionError:
+        result["error"] = "Connection refused"
+        server.status = "offline"
+        server.status_message = result["error"]
+    except Exception as e:
+        result["error"] = str(e)[:200]
+        server.status = "error"
+        server.status_message = result["error"]
+
+    server.last_health_check = datetime.now(timezone.utc)
+    db.commit()
+    return result
+
+
+def check_qwen_health(db: Session, server_id: int, timeout: int = 10) -> Dict[str, Any]:
+    """Check health of an Alibaba Cloud Qwen (DashScope) API connection."""
+    return check_openai_compatible_health(
+        db, server_id, timeout,
+        provider_type=PROVIDER_QWEN,
+        models_list=[
+            "qwen-max", "qwen-plus", "qwen-turbo",
+            "qwen-long", "qwen-max-latest",
+            "text-embedding-v3",
+        ],
+        capabilities={"chat": True, "embedding": True, "vision": True},
+    )
+
+
+def check_deepseek_health(db: Session, server_id: int, timeout: int = 10) -> Dict[str, Any]:
+    """Check health of a DeepSeek API connection."""
+    return check_openai_compatible_health(
+        db, server_id, timeout,
+        provider_type=PROVIDER_DEEPSEEK,
+        models_list=[
+            "deepseek-chat", "deepseek-reasoner",
+        ],
+        capabilities={"chat": True, "embedding": False, "vision": False},
+    )
+
+
+def check_zhipu_health(db: Session, server_id: int, timeout: int = 10) -> Dict[str, Any]:
+    """Check health of a Zhipu AI (GLM) API connection."""
+    return check_openai_compatible_health(
+        db, server_id, timeout,
+        provider_type=PROVIDER_ZHIPU,
+        models_list=[
+            "glm-4-plus", "glm-4-air", "glm-4-flash",
+            "glm-4v", "embedding-3",
+        ],
+        capabilities={"chat": True, "embedding": True, "vision": True},
+    )
+
+
 def check_provider_health(db: Session, server_id: int, timeout: int = 10) -> Dict[str, Any]:
     """Check health of any provider type."""
     server = get_server(db, server_id)
     if not server:
         return {"success": False, "error": "Provider not found"}
-    
+
     provider_type = server.provider_type or PROVIDER_OLLAMA
-    
+
     if provider_type == PROVIDER_OLLAMA:
         return check_server_health(db, server_id, timeout)
     elif provider_type == PROVIDER_OPENAI:
         return check_openai_health(db, server_id, timeout)
     elif provider_type == PROVIDER_ANTHROPIC:
         return check_anthropic_health(db, server_id, timeout)
+    elif provider_type == PROVIDER_QWEN:
+        return check_qwen_health(db, server_id, timeout)
+    elif provider_type == PROVIDER_DEEPSEEK:
+        return check_deepseek_health(db, server_id, timeout)
+    elif provider_type == PROVIDER_ZHIPU:
+        return check_zhipu_health(db, server_id, timeout)
     else:
         return {"success": False, "error": f"Unknown provider type: {provider_type}"}
 
@@ -387,11 +568,12 @@ def check_all_servers_health(db: Session, enabled_only: bool = True) -> List[Dic
     """Check health of all registered servers."""
     servers = get_all_servers(db, enabled_only=enabled_only)
     results = []
-    
+
     for server in servers:
-        result = check_server_health(db, server.id)
+        # Use the unified dispatcher so cloud providers are handled correctly
+        result = check_provider_health(db, server.id)
         results.append(result)
-    
+
     return results
 
 
