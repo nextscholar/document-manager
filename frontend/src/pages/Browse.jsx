@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { 
   FileText, Image, X, ChevronLeft, ChevronRight, Eye, Wand2, 
-  ZoomIn, Loader2, RefreshCw, FolderOpen, Grid, List, Filter, Upload
+  ZoomIn, Loader2, RefreshCw, FolderOpen, Grid, List, Filter, Upload, Trash2
 } from 'lucide-react'
 import styles from './Browse.module.css'
 import FileUploader from '../components/FileUploader'

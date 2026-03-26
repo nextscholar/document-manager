@@ -13,6 +13,7 @@ from src.db.session import get_db
 from src.db.models import RawFile, Entry
 from src.db.settings import get_setting, set_setting, get_all_settings, get_llm_config, get_source_folders
 from src.llm_client import list_models, OLLAMA_URL, MODEL, EMBEDDING_MODEL
+from src.services import servers as servers_service
 
 router = APIRouter()
 
@@ -362,16 +363,16 @@ def complete_setup(db: Session = Depends(get_db)):
 
 @router.get("/system/status")
 def get_system_status(db: Session = Depends(get_db)):
-    """Get Ollama and LLM provider status."""
+    """Get Ollama and LLM provider status, including cloud providers."""
     ollama_status = "offline"
     available_models = []
-    
+
     # Get the active LLM config from database settings
     llm_config = get_llm_config(db)
     provider = llm_config.get("provider", "ollama")
     chat_model = llm_config.get("model", MODEL)
     embedding_model = llm_config.get("embedding_model", EMBEDDING_MODEL)
-    
+
     try:
         # Simple check to see if Ollama is responding
         resp = requests.get(f"{OLLAMA_URL}", timeout=1)
@@ -380,16 +381,39 @@ def get_system_status(db: Session = Depends(get_db)):
             available_models = list_models()
     except Exception:
         pass
-        
+
+    # Gather chat models from all enabled online cloud providers
+    cloud_chat_models = []
+    try:
+        cloud_providers = servers_service.get_cloud_providers(db, enabled_only=True)
+        for cp in cloud_providers:
+            if cp.status != "online":
+                continue
+            caps = cp.capabilities or {}
+            if not caps.get("chat"):
+                continue
+            for m in (cp.models_available or []):
+                # Skip known embedding-only models
+                if any(kw in m.lower() for kw in ("embed", "embedding")):
+                    continue
+                cloud_chat_models.append({
+                    "model": m,
+                    "provider": cp.provider_type,
+                    "provider_name": cp.name,
+                })
+    except Exception:
+        pass
+
     return {
         "ollama": {
             "status": ollama_status,
             "url": OLLAMA_URL,
             "chat_model": chat_model,
             "embedding_model": embedding_model,
-            "available_models": available_models
+            "available_models": available_models,
         },
-        "provider": provider
+        "cloud_chat_models": cloud_chat_models,
+        "provider": provider,
     }
 
 

@@ -73,6 +73,9 @@ ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY", "")
 ZHIPU_API_BASE = os.getenv("ZHIPU_API_BASE", "https://open.bigmodel.cn/api/paas/v4")
 ZHIPU_MODEL = os.getenv("ZHIPU_MODEL", "glm-4-air")
 ZHIPU_EMBEDDING_MODEL = os.getenv("ZHIPU_EMBEDDING_MODEL", "embedding-3")
+# Zhipu embedding-3 max: 3072 tokens. Use ~3000 chars as a safe conservative limit
+# (1 Chinese char ≈ 1 token; 1 Latin char ≈ 0.25 token)
+ZHIPU_EMBEDDING_MAX_CHARS = int(os.getenv("ZHIPU_EMBEDDING_MAX_CHARS", "3000"))
 
 # Providers that share the OpenAI-compatible chat/completions + embeddings API
 OPENAI_COMPATIBLE_PROVIDERS = {"openai", "qwen", "deepseek", "zhipu"}
@@ -181,25 +184,49 @@ class LLMClient:
             return None
 
     def _openai_compat_embed(
-        self, text: str, api_key: str, base_url: str, model: str
+        self, text: str, api_key: str, base_url: str, model: str,
+        max_chars: Optional[int] = None,
     ) -> Optional[List[float]]:
-        """Call an OpenAI-compatible /embeddings endpoint."""
-        prompt = _sanitize_embedding_prompt(text, EMBEDDING_MAX_CHARS)
-        try:
-            response = requests.post(
-                f"{base_url}/embeddings",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={"model": model, "input": prompt},
-                timeout=30,
-            )
-            response.raise_for_status()
-            return response.json()["data"][0]["embedding"]
-        except Exception as e:
-            logger.error(f"OpenAI-compat embedding failed ({base_url}): {e}")
-            return None
+        """Call an OpenAI-compatible /embeddings endpoint with retry on truncation errors."""
+        char_limit = max_chars if max_chars is not None else EMBEDDING_MAX_CHARS
+        prompt = _sanitize_embedding_prompt(text, char_limit)
+
+        for attempt in range(1, max(1, EMBEDDING_RETRY_ATTEMPTS) + 1):
+            try:
+                response = requests.post(
+                    f"{base_url}/embeddings",
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"model": model, "input": prompt},
+                    timeout=30,
+                )
+                response.raise_for_status()
+                return response.json()["data"][0]["embedding"]
+            except requests.HTTPError as e:
+                resp = getattr(e, "response", None)
+                status = getattr(resp, "status_code", None)
+                # Log the response body to aid debugging
+                try:
+                    body = resp.text if resp is not None else ""
+                except Exception:
+                    body = ""
+                logger.error(
+                    f"OpenAI-compat embedding failed ({base_url}): {e} | body={body[:300]}"
+                )
+                # Retry with shorter text when we hit a context-length or similar error
+                if status in (400, 413) and attempt < EMBEDDING_RETRY_ATTEMPTS and (
+                    _looks_like_context_length_error(resp) or len(prompt) > 500
+                ):
+                    prompt = _sanitize_embedding_prompt(prompt, max(1, len(prompt) // 2))
+                    time.sleep(EMBEDDING_RETRY_BASE_DELAY_S * attempt)
+                    continue
+                return None
+            except Exception as e:
+                logger.error(f"OpenAI-compat embedding failed ({base_url}): {e}")
+                return None
+        return None
 
     def generate_json(self, prompt: str, model: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Generate JSON response from LLM."""
@@ -253,7 +280,8 @@ class LLMClient:
             )
         elif self.provider == "zhipu":
             return self._openai_compat_embed(
-                text, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_embedding_model
+                text, self.zhipu_api_key, self.zhipu_api_base, model or self.zhipu_embedding_model,
+                max_chars=ZHIPU_EMBEDDING_MAX_CHARS,
             )
         else:
             # Anthropic and DeepSeek don't have embedding endpoints; fall back to Ollama

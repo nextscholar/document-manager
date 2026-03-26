@@ -253,7 +253,7 @@ function Home() {
             <option value="30">30 results</option>
           </select>
 
-          {status && status.ollama.available_models && (
+          {status && (status.ollama.available_models?.length > 0 || status.cloud_chat_models?.length > 0) && (
             <select 
               value={selectedModel} 
               onChange={(e) => {
@@ -263,9 +263,32 @@ function Home() {
               className={styles.modelSelect}
               title="Select Chat Model"
             >
-              {status.ollama.available_models.map(model => (
-                <option key={model} value={model}>{model}</option>
-              ))}
+              <option value="">Default model</option>
+              {status.ollama.available_models?.length > 0 && (
+                <optgroup label="Ollama">
+                  {status.ollama.available_models.map(model => (
+                    <option key={model} value={model}>{model}</option>
+                  ))}
+                </optgroup>
+              )}
+              {status.cloud_chat_models?.length > 0 && (
+                Object.entries(
+                  status.cloud_chat_models.reduce((acc, m) => {
+                    const key = m.provider_name || m.provider
+                    acc[key] = acc[key] || []
+                    acc[key].push(m)
+                    return acc
+                  }, {})
+                ).map(([providerName, models]) => (
+                  <optgroup key={providerName} label={providerName}>
+                    {models.map(m => (
+                      <option key={`${m.provider}/${m.model}`} value={`${m.provider}/${m.model}`}>
+                        {m.model}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))
+              )}
             </select>
           )}
 

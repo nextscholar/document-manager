@@ -581,6 +581,19 @@ def re_enrich_file(file_id: int, db: Session = Depends(get_db)):
     return {"message": f"Reset {count} entries for file {file_id} for re-enrichment"}
 
 
+@router.delete("/files/{file_id}")
+def delete_file(file_id: int, db: Session = Depends(get_db)):
+    """Delete a file and all its associated entries from the database."""
+    file = db.query(RawFile).filter(RawFile.id == file_id).first()
+    if not file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    db.delete(file)
+    db.commit()
+
+    return {"deleted": True, "id": file_id, "filename": file.filename}
+
+
 # ============================================================================
 # Entries Endpoints
 # ============================================================================
