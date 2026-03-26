@@ -63,6 +63,7 @@ services:
       - worker_shared:/app/shared
       - ./archive_root:/data/archive 
       - /root/test_paper:/data/archive/documents
+      - /root/test_paper:/data/archive/inbox
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
