@@ -29,7 +29,7 @@ class ServerCreate(BaseModel):
     url: str
     enabled: bool = True
     priority: int = 0
-    provider_type: str = 'ollama'  # 'ollama', 'openai', 'anthropic'
+    provider_type: str = 'ollama'  # 'ollama', 'openai', 'anthropic', 'qwen', 'deepseek', 'zhipu'
     api_key: Optional[str] = None
     default_model: Optional[str] = None
 
@@ -79,19 +79,44 @@ async def test_connection(request: TestConnectionRequest):
         "capabilities": {},
         "error": None
     }
-    
+
+    # Provider-specific model lists and capabilities for Chinese providers
+    CHINESE_PROVIDER_INFO = {
+        'qwen': {
+            'default_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+            'models': [
+                'qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long',
+                'qwen-max-latest', 'text-embedding-v3',
+            ],
+            'capabilities': {'chat': True, 'embedding': True, 'vision': True},
+        },
+        'deepseek': {
+            'default_url': 'https://api.deepseek.com/v1',
+            'models': ['deepseek-chat', 'deepseek-reasoner'],
+            'capabilities': {'chat': True, 'embedding': False, 'vision': False},
+        },
+        'zhipu': {
+            'default_url': 'https://open.bigmodel.cn/api/paas/v4',
+            'models': [
+                'glm-4-plus', 'glm-4-air', 'glm-4-flash',
+                'glm-4v', 'embedding-3',
+            ],
+            'capabilities': {'chat': True, 'embedding': True, 'vision': True},
+        },
+    }
+
     try:
         if request.provider_type == 'ollama':
             # Test Ollama connection
             url = request.url.rstrip('/')
             resp = requests.get(f"{url}/api/tags", timeout=10)
-            
+
             if resp.status_code == 200:
                 data = resp.json()
                 models = data.get("models", [])
                 result["connected"] = True
                 result["models"] = [m.get("name") for m in models]
-                
+
                 # Detect capabilities
                 caps = {"chat": False, "embedding": False, "vision": False}
                 for m in models:
@@ -106,7 +131,7 @@ async def test_connection(request: TestConnectionRequest):
                 result["capabilities"] = caps
             else:
                 result["error"] = f"HTTP {resp.status_code}"
-                
+
         elif request.provider_type == 'openai':
             if not request.api_key:
                 result["error"] = "API key required"
@@ -117,23 +142,22 @@ async def test_connection(request: TestConnectionRequest):
                     headers={"Authorization": f"Bearer {request.api_key}"},
                     timeout=10
                 )
-                
+
                 if resp.status_code == 200:
                     data = resp.json()
                     result["connected"] = True
-                    result["models"] = [m.get("id") for m in data.get("data", [])][:20]  # Limit for display
+                    result["models"] = [m.get("id") for m in data.get("data", [])][:20]
                     result["capabilities"] = {"chat": True, "embedding": True, "vision": True}
                 elif resp.status_code == 401:
                     result["error"] = "Invalid API key"
                 else:
                     result["error"] = f"HTTP {resp.status_code}"
-                    
+
         elif request.provider_type == 'anthropic':
             if not request.api_key:
                 result["error"] = "API key required"
             else:
                 url = request.url or 'https://api.anthropic.com'
-                # Anthropic doesn't have a models endpoint, do a minimal test
                 resp = requests.post(
                     f"{url}/v1/messages",
                     headers={
@@ -148,8 +172,7 @@ async def test_connection(request: TestConnectionRequest):
                     },
                     timeout=10
                 )
-                
-                # Any 2xx or 4xx response (except 401) means we connected
+
                 if resp.status_code in [200, 400]:
                     result["connected"] = True
                     result["models"] = [
@@ -162,16 +185,70 @@ async def test_connection(request: TestConnectionRequest):
                     result["error"] = "Invalid API key"
                 else:
                     result["error"] = f"HTTP {resp.status_code}"
+
+        elif request.provider_type in CHINESE_PROVIDER_INFO:
+            # All three Chinese providers use OpenAI-compatible APIs
+            if not request.api_key:
+                result["error"] = "API key required"
+            else:
+                info = CHINESE_PROVIDER_INFO[request.provider_type]
+                base_url = (request.url or info['default_url']).rstrip('/')
+                headers = {
+                    "Authorization": f"Bearer {request.api_key}",
+                    "Content-Type": "application/json",
+                }
+
+                # Try /models endpoint first
+                connected = False
+                try:
+                    resp = requests.get(
+                        f"{base_url}/models", headers=headers, timeout=10
+                    )
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        fetched = [m.get("id") for m in data.get("data", [])]
+                        result["models"] = fetched or info['models']
+                        result["connected"] = True
+                        result["capabilities"] = info['capabilities']
+                        connected = True
+                    elif resp.status_code == 401:
+                        result["error"] = "Invalid API key"
+                        connected = True  # Got a response, just bad key
+                except Exception:
+                    pass
+
+                if not connected:
+                    # Fall back: probe with a minimal chat request
+                    probe_model = info['models'][0]
+                    resp = requests.post(
+                        f"{base_url}/chat/completions",
+                        headers=headers,
+                        json={
+                            "model": probe_model,
+                            "messages": [{"role": "user", "content": "hi"}],
+                            "max_tokens": 1,
+                        },
+                        timeout=10,
+                    )
+                    if resp.status_code in (200, 400, 422):
+                        result["connected"] = True
+                        result["models"] = info['models']
+                        result["capabilities"] = info['capabilities']
+                    elif resp.status_code == 401:
+                        result["error"] = "Invalid API key"
+                    else:
+                        result["error"] = f"HTTP {resp.status_code}"
+
         else:
             result["error"] = f"Unknown provider type: {request.provider_type}"
-            
+
     except requests.Timeout:
         result["error"] = "Connection timed out"
     except requests.ConnectionError:
         result["error"] = "Connection refused - is the server running?"
     except Exception as e:
         result["error"] = str(e)[:200]
-    
+
     return result
 
 
