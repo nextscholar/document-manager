@@ -29,6 +29,9 @@ class LLMSettingsUpdate(BaseModel):
     ollama: Optional[Dict] = None
     openai: Optional[Dict] = None
     anthropic: Optional[Dict] = None
+    qwen: Optional[Dict] = None
+    deepseek: Optional[Dict] = None
+    zhipu: Optional[Dict] = None
 
 
 class SourcesUpdate(BaseModel):
@@ -122,16 +125,12 @@ async def get_llm_settings(db: Session = Depends(get_db)):
     """Get LLM configuration settings."""
     llm_settings = get_setting(db, "llm") or {}
     
-    # Mask API keys
-    if "openai" in llm_settings and "api_key" in llm_settings["openai"]:
-        if llm_settings["openai"]["api_key"]:
-            llm_settings["openai"]["api_key_masked"] = "***" + llm_settings["openai"]["api_key"][-4:]
-            del llm_settings["openai"]["api_key"]
-    
-    if "anthropic" in llm_settings and "api_key" in llm_settings["anthropic"]:
-        if llm_settings["anthropic"]["api_key"]:
-            llm_settings["anthropic"]["api_key_masked"] = "***" + llm_settings["anthropic"]["api_key"][-4:]
-            del llm_settings["anthropic"]["api_key"]
+    # Mask API keys for all providers
+    for provider_key in ("openai", "anthropic", "qwen", "deepseek", "zhipu"):
+        provider_cfg = llm_settings.get(provider_key, {})
+        if provider_cfg and provider_cfg.get("api_key"):
+            provider_cfg["api_key_masked"] = "***" + provider_cfg["api_key"][-4:]
+            del provider_cfg["api_key"]
     
     return llm_settings
 
@@ -147,6 +146,12 @@ async def update_llm_settings(settings: LLMSettingsUpdate, db: Session = Depends
         current["openai"] = {**current.get("openai", {}), **settings.openai}
     if settings.anthropic:
         current["anthropic"] = {**current.get("anthropic", {}), **settings.anthropic}
+    if settings.qwen:
+        current["qwen"] = {**current.get("qwen", {}), **settings.qwen}
+    if settings.deepseek:
+        current["deepseek"] = {**current.get("deepseek", {}), **settings.deepseek}
+    if settings.zhipu:
+        current["zhipu"] = {**current.get("zhipu", {}), **settings.zhipu}
     
     set_setting(db, "llm", current)
     return {"message": "LLM settings updated"}
