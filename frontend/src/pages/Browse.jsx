@@ -52,8 +52,49 @@ function Browse() {
   // Counts for tabs
   const [counts, setCounts] = useState({ files: 0, images: 0 })
   
+  // File action state
+  const [actionInProgress, setActionInProgress] = useState({}) // { fileId: 'delete' | 'reenrich' }
+  
   const filesLimit = 50
   const imagesLimit = 24
+
+  // Delete a file from the DB
+  const handleDeleteFile = async (e, fileId, filename) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm(`Delete "${filename}" from the database? The original file on disk will NOT be removed.`)) return
+    setActionInProgress(prev => ({ ...prev, [fileId]: 'delete' }))
+    try {
+      const res = await apiFetch(`/api/files/${fileId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      setFiles(prev => prev.filter(f => f.id !== fileId))
+      setFilesTotal(prev => Math.max(0, prev - 1))
+      setCounts(prev => ({ ...prev, files: Math.max(0, prev.files - 1) }))
+    } catch (err) {
+      console.error('Failed to delete file:', err)
+      alert('Failed to delete file: ' + err.message)
+    } finally {
+      setActionInProgress(prev => { const n = { ...prev }; delete n[fileId]; return n })
+    }
+  }
+
+  // Queue a file for re-processing (re-enrich)
+  const handleReEnrichFile = async (e, fileId) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setActionInProgress(prev => ({ ...prev, [fileId]: 'reenrich' }))
+    try {
+      const res = await apiFetch(`/api/files/${fileId}/re-enrich`, { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      alert(data.message || 'Queued for re-processing')
+    } catch (err) {
+      console.error('Failed to queue re-enrich:', err)
+      alert('Failed to queue re-processing: ' + err.message)
+    } finally {
+      setActionInProgress(prev => { const n = { ...prev }; delete n[fileId]; return n })
+    }
+  }
 
   // Fetch counts for tab badges
   const fetchCounts = useCallback(async () => {
@@ -353,28 +394,76 @@ function Browse() {
           ) : viewMode === 'list' ? (
             <div className={styles.fileList}>
               {files.map(file => (
-                <Link to={`/document/${file.id}`} key={file.id} className={styles.fileRow}>
-                  <FileText size={18} className={styles.fileIcon} />
-                  <div className={styles.fileInfo}>
-                    <span className={styles.fileName}>{file.filename}</span>
-                    <span className={styles.filePath}>{file.path}</span>
+                <div key={file.id} className={styles.fileRow}>
+                  <Link to={`/document/${file.id}`} className={styles.fileRowLink}>
+                    <FileText size={18} className={styles.fileIcon} />
+                    <div className={styles.fileInfo}>
+                      <span className={styles.fileName}>{file.filename}</span>
+                      <span className={styles.filePath}>{file.path}</span>
+                    </div>
+                    <span className={styles.fileDate}>
+                      {new Date(file.created_at).toLocaleDateString()}
+                    </span>
+                  </Link>
+                  <div className={styles.fileActions}>
+                    <button
+                      className={styles.fileActionBtn}
+                      title="Re-process this file (re-chunk, re-embed, re-enrich)"
+                      disabled={!!actionInProgress[file.id]}
+                      onClick={(e) => handleReEnrichFile(e, file.id)}
+                    >
+                      {actionInProgress[file.id] === 'reenrich'
+                        ? <Loader2 size={14} className={styles.spin} />
+                        : <RefreshCw size={14} />}
+                    </button>
+                    <button
+                      className={`${styles.fileActionBtn} ${styles.fileActionBtnDanger}`}
+                      title="Delete file from database"
+                      disabled={!!actionInProgress[file.id]}
+                      onClick={(e) => handleDeleteFile(e, file.id, file.filename)}
+                    >
+                      {actionInProgress[file.id] === 'delete'
+                        ? <Loader2 size={14} className={styles.spin} />
+                        : <Trash2 size={14} />}
+                    </button>
                   </div>
-                  <span className={styles.fileDate}>
-                    {new Date(file.created_at).toLocaleDateString()}
-                  </span>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (
             <div className={styles.fileGrid}>
               {files.map(file => (
-                <Link to={`/document/${file.id}`} key={file.id} className={styles.fileCard}>
-                  <FileText size={32} />
-                  <span className={styles.fileName}>{file.filename}</span>
-                  <span className={styles.fileDate}>
-                    {new Date(file.created_at).toLocaleDateString()}
-                  </span>
-                </Link>
+                <div key={file.id} className={styles.fileCard}>
+                  <Link to={`/document/${file.id}`} className={styles.fileCardLink}>
+                    <FileText size={32} />
+                    <span className={styles.fileName}>{file.filename}</span>
+                    <span className={styles.fileDate}>
+                      {new Date(file.created_at).toLocaleDateString()}
+                    </span>
+                  </Link>
+                  <div className={styles.fileCardActions}>
+                    <button
+                      className={styles.fileActionBtn}
+                      title="Re-process this file"
+                      disabled={!!actionInProgress[file.id]}
+                      onClick={(e) => handleReEnrichFile(e, file.id)}
+                    >
+                      {actionInProgress[file.id] === 'reenrich'
+                        ? <Loader2 size={14} className={styles.spin} />
+                        : <RefreshCw size={14} />}
+                    </button>
+                    <button
+                      className={`${styles.fileActionBtn} ${styles.fileActionBtnDanger}`}
+                      title="Delete file from database"
+                      disabled={!!actionInProgress[file.id]}
+                      onClick={(e) => handleDeleteFile(e, file.id, file.filename)}
+                    >
+                      {actionInProgress[file.id] === 'delete'
+                        ? <Loader2 size={14} className={styles.spin} />
+                        : <Trash2 size={14} />}
+                    </button>
+                  </div>
+                </div>
               ))}
             </div>
           )}

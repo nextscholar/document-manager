@@ -81,10 +81,19 @@ function Settings() {
       
       if (llmRes.ok) {
         const data = await llmRes.json()
+        // Helper: find a cloud provider model value in the format "provider/model"
+        // Checks Qwen, Zhipu, OpenAI, Anthropic sections for the given key.
+        const findCloudModel = (key) => {
+          for (const pt of ['qwen', 'zhipu', 'openai', 'anthropic', 'deepseek']) {
+            const val = data[pt]?.[key]
+            if (val) return `${pt}/${val}`
+          }
+          return ''
+        }
         setLlmSettings({
-          chatModel: data.ollama?.model || data.chatModel || '',
-          embedModel: data.ollama?.embedding_model || data.embedModel || '',
-          visionModel: data.ollama?.vision_model || data.visionModel || ''
+          chatModel: data.ollama?.model || findCloudModel('model') || data.chatModel || '',
+          embedModel: data.ollama?.embedding_model || findCloudModel('embedding_model') || data.embedModel || '',
+          visionModel: data.ollama?.vision_model || findCloudModel('vision_model') || data.visionModel || ''
         })
       }
       if (srcRes.ok) setSources(await srcRes.json())
@@ -105,16 +114,40 @@ function Settings() {
   const saveLLMSettings = async (settings) => {
     setSaving(true)
     try {
+      // Model values from cloud providers use "provider/model-name" format.
+      // Parse them and route each to the correct provider settings section.
+      const parseModel = (value) => {
+        if (!value || !value.includes('/')) return { providerType: null, model: value || '' }
+        const idx = value.indexOf('/')
+        return { providerType: value.slice(0, idx), model: value.slice(idx + 1) }
+      }
+
+      const chat = parseModel(settings.chatModel)
+      const embed = parseModel(settings.embedModel)
+      const vision = parseModel(settings.visionModel)
+
+      // Base payload always updates the Ollama section for Ollama-native models
+      const payload = {
+        ollama: {
+          model: chat.providerType ? '' : settings.chatModel,
+          embedding_model: embed.providerType ? '' : settings.embedModel,
+          vision_model: vision.providerType ? '' : settings.visionModel,
+        }
+      }
+
+      // Route cloud provider models to their respective settings sections
+      const addCloud = (providerType, key, value) => {
+        if (!providerType || providerType === 'ollama') return
+        payload[providerType] = { ...(payload[providerType] || {}), [key]: value }
+      }
+      addCloud(chat.providerType, 'model', chat.model)
+      addCloud(embed.providerType, 'embedding_model', embed.model)
+      addCloud(vision.providerType, 'vision_model', vision.model)
+
       await fetch(`${API_BASE}/settings/llm`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ollama: {
-            model: settings.chatModel,
-            embedding_model: settings.embedModel,
-            vision_model: settings.visionModel
-          }
-        })
+        body: JSON.stringify(payload)
       })
       await loadSettings()
     } catch (err) {

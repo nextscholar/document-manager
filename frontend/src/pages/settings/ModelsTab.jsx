@@ -19,6 +19,15 @@ import styles from '../Settings.module.css'
 
 const API_BASE = '/api'
 
+// Known default embedding models per cloud provider type.
+// Used as a fallback when the provider's /models endpoint doesn't return
+// the embedding models (some API tiers omit them from the listing).
+const PROVIDER_EMBEDDING_MODELS = {
+  openai: ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
+  qwen: ['text-embedding-v3'],
+  zhipu: ['embedding-3'],
+}
+
 export default function ModelsTab({
   providers,
   llmSettings,
@@ -293,9 +302,15 @@ export default function ModelsTab({
             {cloudProviders
               .filter(p => p.capabilities?.embedding)
               .map(provider => {
-                const embeddingModels = (provider.models_available || []).filter(
+                // Use models from the API response; fall back to known defaults
+                // so embedding models always appear even if /models omits them.
+                const available = (provider.models_available || [])
+                let embeddingModels = available.filter(
                   m => m.toLowerCase().includes('embed')
                 )
+                if (embeddingModels.length === 0) {
+                  embeddingModels = PROVIDER_EMBEDDING_MODELS[provider.provider_type] || []
+                }
                 if (embeddingModels.length === 0) return null
                 return (
                   <optgroup key={provider.id} label={`${provider.name} Embeddings`}>
