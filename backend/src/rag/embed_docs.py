@@ -16,7 +16,7 @@ from sqlalchemy import text
 from src.db.session import SessionLocal
 from src.db.models import RawFile
 from src.llm_client import embed_text
-from src.constants import DOC_EMBED_BATCH_SIZE
+from src.constants import DOC_EMBED_BATCH_SIZE, EMBEDDING_DIMENSIONS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -80,10 +80,23 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
                 doc_id, embedding = future.result()
                 
                 if embedding:
-                    # Update the database
+                    if len(embedding) != EMBEDDING_DIMENSIONS:
+                        logger.error(
+                            f"Doc {doc_id}: embedding dimension mismatch "
+                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
+                        )
+                        db.execute(text("""
+                            UPDATE raw_files 
+                            SET doc_status = 'embed_error'
+                            WHERE id = :id
+                        """), {"id": doc_id})
+                        db.commit()
+                        continue
+                    # Update the database – cast the text literal to vector explicitly so
+                    # PostgreSQL does not raise "expression is of type text, not vector".
                     db.execute(text("""
                         UPDATE raw_files 
-                        SET doc_embedding = :embedding,
+                        SET doc_embedding = :embedding::vector,
                             doc_status = 'embedded'
                         WHERE id = :id
                     """), {"embedding": str(embedding), "id": doc_id})

@@ -9,7 +9,7 @@ from sqlalchemy import func
 from src.db.session import get_db
 from src.db.models import Entry
 from src.llm_client import embed_text
-from src.constants import EMBED_BATCH_SIZE
+from src.constants import EMBED_BATCH_SIZE, EMBEDDING_DIMENSIONS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -77,6 +77,14 @@ def embed_entry(db: Session, entry: Entry):
     embedding = embed_text(text_to_embed)
     
     if embedding:
+        if len(embedding) != EMBEDDING_DIMENSIONS:
+            logger.error(
+                f"Entry {entry.id}: embedding dimension mismatch "
+                f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
+            )
+            entry.status = 'error'
+            db.commit()
+            return
         entry.embedding = embedding
         db.commit()
         logger.info(f"Embedded entry {entry.id}")
@@ -110,10 +118,18 @@ def embed_batch(db: Session, entries: list) -> int:
             try:
                 result_id, embedding = future.result()
                 if embedding:
-                    entry = entry_map[result_id]
-                    entry.embedding = embedding
-                    success_count += 1
-                    logger.info(f"Embedded entry {result_id}")
+                    if len(embedding) != EMBEDDING_DIMENSIONS:
+                        logger.error(
+                            f"Entry {result_id}: embedding dimension mismatch "
+                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
+                        )
+                        entry = entry_map[result_id]
+                        entry.status = 'error'
+                    else:
+                        entry = entry_map[result_id]
+                        entry.embedding = embedding
+                        success_count += 1
+                        logger.info(f"Embedded entry {result_id}")
                 else:
                     logger.error(f"Failed to embed entry {result_id}")
             except Exception as e:

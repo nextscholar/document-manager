@@ -72,12 +72,12 @@ def search_docs_stage1(
     sql = text(f"""
         WITH doc_vector AS (
             SELECT rf.id, 
-                   1.0 - (rf.doc_embedding <=> :embedding) as vector_score,
-                   ROW_NUMBER() OVER (ORDER BY rf.doc_embedding <=> :embedding) as vector_rank
+                   1.0 - (rf.doc_embedding <=> :embedding::vector) as vector_score,
+                   ROW_NUMBER() OVER (ORDER BY rf.doc_embedding <=> :embedding::vector) as vector_rank
             FROM raw_files rf
             WHERE rf.doc_embedding IS NOT NULL
             {filter_sql}
-            ORDER BY rf.doc_embedding <=> :embedding
+            ORDER BY rf.doc_embedding <=> :embedding::vector
             LIMIT 100
         ),
         doc_keyword AS (
@@ -138,8 +138,8 @@ def search_chunks_stage2(
     sql = text("""
         WITH vector_ranked AS (
             SELECT e.id,
-                   1.0 - (e.embedding <=> :embedding) as vector_score,
-                   ROW_NUMBER() OVER (ORDER BY e.embedding <=> :embedding) as vector_rank
+                   1.0 - (e.embedding <=> :embedding::vector) as vector_score,
+                   ROW_NUMBER() OVER (ORDER BY e.embedding <=> :embedding::vector) as vector_rank
             FROM entries e
             WHERE e.file_id = ANY(:doc_ids)
               AND e.embedding IS NOT NULL
@@ -447,7 +447,7 @@ def search_entries_semantic(
     sql = text(f"""
         WITH vector_scores AS (
             SELECT e.id, 
-                   1.0 - (e.embedding <=> :embedding) as vector_score
+                   1.0 - (e.embedding <=> :embedding::vector) as vector_score
             FROM entries e
             JOIN raw_files rf ON e.file_id = rf.id
             WHERE e.embedding IS NOT NULL
