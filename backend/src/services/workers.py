@@ -294,7 +294,15 @@ def worker_to_dict(worker: Worker) -> Dict[str, Any]:
     if worker.llm_provider:
         server_name = worker.llm_provider.name
         server_url = worker.llm_provider.url
-    
+
+    # Read active LLM info stored by the worker loop during config refresh.
+    # These fields reflect the *currently active* provider/model from Settings,
+    # regardless of which Ollama server the worker was initially registered with.
+    config = worker.config or {}
+    active_llm_provider = config.get('active_llm_provider')
+    active_model = config.get('active_model')
+    active_embedding_model = config.get('active_embedding_model')
+
     return {
         "id": worker.id,
         "name": worker.name,
@@ -308,7 +316,11 @@ def worker_to_dict(worker: Worker) -> Dict[str, Any]:
         "llm_provider_url": server_url,     # New field name
         "ollama_server_name": server_name,  # Keep for backward compatibility
         "ollama_server_url": server_url,    # Keep for backward compatibility
-        "config": worker.config or {},
+        # Active LLM info from settings (updated by worker loop each config refresh)
+        "active_llm_provider": active_llm_provider,
+        "active_model": active_model,
+        "active_embedding_model": active_embedding_model,
+        "config": config,
         "last_heartbeat": worker.last_heartbeat.isoformat() if worker.last_heartbeat else None,
         "started_at": worker.started_at.isoformat() if worker.started_at else None
     }
