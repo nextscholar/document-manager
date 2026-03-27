@@ -125,17 +125,67 @@
 .fileRow {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
+  gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   background: var(--color-surface);
   border-radius: var(--radius-md);
-  text-decoration: none;
-  color: inherit;
   transition: background 0.2s;
 }
 
 .fileRow:hover {
   background: var(--color-bg);
+}
+
+/* The clickable link area inside the row */
+.fileRowLink {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  flex: 1;
+  min-width: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.fileActions {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.fileRow:hover .fileActions {
+  opacity: 1;
+}
+
+.fileActionBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  font-size: var(--font-size-xs);
+}
+
+.fileActionBtn:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.fileActionBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.fileActionBtnDanger:hover {
+  border-color: var(--color-error, #ef4444);
+  color: var(--color-error, #ef4444);
 }
 
 .fileIcon {
@@ -183,12 +233,10 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-lg);
+  gap: var(--spacing-xs);
   background: var(--color-surface);
   border-radius: var(--radius-md);
-  text-decoration: none;
-  color: inherit;
+  overflow: hidden;
   transition: all 0.2s;
   text-align: center;
 }
@@ -196,6 +244,18 @@
 .fileCard:hover {
   background: var(--color-bg);
   transform: translateY(-2px);
+}
+
+/* Clickable link area within grid card */
+.fileCardLink {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-sm);
+  text-decoration: none;
+  color: inherit;
+  width: 100%;
 }
 
 .fileCard svg {
@@ -209,6 +269,21 @@
 
 .fileCard .fileDate {
   font-size: var(--font-size-xs);
+}
+
+/* Action buttons shown at the bottom of each grid card */
+.fileCardActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  padding: var(--spacing-xs) var(--spacing-sm) var(--spacing-sm);
+  width: 100%;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.fileCard:hover .fileCardActions {
+  opacity: 1;
 }
 
 /* Image Grid */

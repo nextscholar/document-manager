@@ -438,7 +438,15 @@ def check_openai_compatible_health(
                 data = resp.json()
                 fetched = [m.get("id") for m in data.get("data", [])]
                 if fetched:
-                    result["models"] = fetched
+                    # Merge fetched models with known defaults so that embedding /
+                    # vision models defined in models_list are never lost even when
+                    # the provider's /models endpoint omits them (e.g. Qwen may not
+                    # list text-embedding-v3 under every account tier).
+                    merged = list(fetched)
+                    for m in (models_list or []):
+                        if m not in merged:
+                            merged.append(m)
+                    result["models"] = merged
                 result["connected"] = True
                 server.status = "online"
                 server.status_message = None
