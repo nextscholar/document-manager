@@ -61,7 +61,8 @@ services:
     restart: unless-stopped
     volumes:
       - worker_shared:/app/shared
-      - ./archive_root:/data/archive 
+      - ./archive_root:/data/archive
+      - ./archive_root/inbox:/data/archive/inbox 
       - /root/test_paper:/data/archive/documents
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
@@ -93,7 +94,8 @@ services:
     restart: unless-stopped
     volumes:
       - worker_shared:/app/shared
-      - ./archive_root:/data/archive 
+      - ./archive_root:/data/archive
+      - ./archive_root/inbox:/data/archive/inbox 
       - /root/test_paper:/data/archive/documents
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
