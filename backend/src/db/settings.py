@@ -38,7 +38,7 @@ class AnthropicConfig(TypedDict):
 
 class LLMSettings(TypedDict):
     """LLM provider settings."""
-    provider: str  # "ollama", "openai", or "anthropic"
+    provider: str  # "ollama", "openai", "anthropic", "qwen", "deepseek", or "zhipu"
     ollama: OllamaConfig
     openai: OpenAIConfig
     anthropic: AnthropicConfig
@@ -82,7 +82,7 @@ DEFAULT_SETTINGS = {
     # - full: Full LLM enrichment per chunk (slow, 393+ days for large archives)
     "chunk_enrichment_mode": "embed_only",
     "llm": {
-        "provider": "ollama",  # ollama, openai, anthropic
+        "provider": "ollama",  # ollama, openai, anthropic, qwen, deepseek, zhipu
         "ollama": {
             "url": "http://ollama:11434",
             "model": "dolphin-phi",
@@ -98,6 +98,20 @@ DEFAULT_SETTINGS = {
         "anthropic": {
             "api_key": "",
             "model": "claude-3-haiku-20240307"
+        },
+        "qwen": {
+            "api_key": "",
+            "model": "qwen-plus",
+            "embedding_model": "text-embedding-v3"
+        },
+        "deepseek": {
+            "api_key": "",
+            "model": "deepseek-chat"
+        },
+        "zhipu": {
+            "api_key": "",
+            "model": "glm-4-air",
+            "embedding_model": "embedding-3"
         }
     },
     "sources": {

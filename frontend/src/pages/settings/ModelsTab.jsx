@@ -290,6 +290,23 @@ export default function ModelsTab({
                 </option>
               ))}
             </optgroup>
+            {cloudProviders
+              .filter(p => p.capabilities?.embedding)
+              .map(provider => {
+                const embeddingModels = (provider.models_available || []).filter(
+                  m => m.toLowerCase().includes('embed')
+                )
+                if (embeddingModels.length === 0) return null
+                return (
+                  <optgroup key={provider.id} label={`${provider.name} Embeddings`}>
+                    {embeddingModels.map(model => (
+                      <option key={model} value={`${provider.provider_type}/${model}`}>
+                        {model}
+                      </option>
+                    ))}
+                  </optgroup>
+                )
+              })}
           </select>
           <small>Used for semantic search and document similarity</small>
         </div>

@@ -872,23 +872,27 @@ def generate_json(prompt: str, model: str = None) -> Optional[Dict[str, Any]]:
         logger.error(f"Ollama request failed: {e}")
         return None
 
-def embed_text(text: str, model: str = EMBEDDING_MODEL) -> Optional[List[float]]:
+def embed_text(text: str, model: Optional[str] = None) -> Optional[List[float]]:
     if MOCK_MODE:
         # Return random vector using EMBEDDING_DIMENSIONS from constants
         import random
         return [random.random() for _ in range(EMBEDDING_DIMENSIONS)]
 
-    # Use multi-provider client if available and has providers configured
+    # Use multi-provider client if available and has providers configured.
+    # Pass model=None when no explicit model is given so each provider uses its
+    # own default embedding model (e.g. "embedding-3" for Zhipu, not the Ollama
+    # default "nomic-embed-text" which would cause a 400 error on cloud APIs).
     global _multi_provider_client
     if _multi_provider_client and _multi_provider_client.providers:
         return _multi_provider_client.embed_text(text, model)
-    
-    # Fall back to legacy behavior
+
+    # Fall back to legacy Ollama behavior
+    embed_model = model or EMBEDDING_MODEL
     url = f"{OLLAMA_URL}/api/embeddings"
 
     prompt = _sanitize_embedding_prompt(text, EMBEDDING_MAX_CHARS)
     for attempt in range(1, max(1, EMBEDDING_RETRY_ATTEMPTS) + 1):
-        payload = {"model": model, "prompt": prompt}
+        payload = {"model": embed_model, "prompt": prompt}
         try:
             response = requests.post(url, json=payload, timeout=60)
             response.raise_for_status()
@@ -898,7 +902,7 @@ def embed_text(text: str, model: str = EMBEDDING_MODEL) -> Optional[List[float]]
             resp = getattr(e, "response", None)
             status = getattr(resp, "status_code", None)
             logger.error(
-                f"Ollama embedding request failed (status={status}, model={model}, chars={len(prompt)}): {e}"
+                f"Ollama embedding request failed (status={status}, model={embed_model}, chars={len(prompt)}): {e}"
             )
 
             if status in (500, 400, 413) and _looks_like_context_length_error(resp) and attempt < EMBEDDING_RETRY_ATTEMPTS:
@@ -907,7 +911,7 @@ def embed_text(text: str, model: str = EMBEDDING_MODEL) -> Optional[List[float]]
                 continue
             return None
         except requests.RequestException as e:
-            logger.error(f"Ollama embedding request error (model={model}, chars={len(prompt)}): {e}")
+            logger.error(f"Ollama embedding request error (model={embed_model}, chars={len(prompt)}): {e}")
             if attempt < EMBEDDING_RETRY_ATTEMPTS:
                 time.sleep(EMBEDDING_RETRY_BASE_DELAY_S * attempt)
                 continue
