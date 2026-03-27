@@ -7,6 +7,9 @@ export default defineConfig({
   define: {
     'process.env': {}
   },
+  optimizeDeps: {
+    exclude: ['Dockerfile', 'docker-compose.yml']
+  },
   server: {
     host: true,
     port: 3000,
