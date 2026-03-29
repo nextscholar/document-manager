@@ -332,6 +332,9 @@ def run_pipeline():
                             Worker.id == get_or_create_worker_id()
                         ).first()
                         if worker_record:
+                            # Build a new dict so SQLAlchemy detects the mutation.
+                            # JSONB columns require flag_modified() or a full
+                            # object replacement to trigger change tracking.
                             config = dict(worker_record.config or {})
                             config['active_llm_provider'] = llm_config.get('provider', 'ollama')
                             config['active_model'] = llm_config.get('model', '')

@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-def _embed_query(db: Session, text_to_embed: str) -> Optional[List[float]]:
+def embed_query(db: Session, text_to_embed: str) -> Optional[List[float]]:
     """
     Embed a search query using the currently configured LLM provider from the database.
 
@@ -259,7 +259,7 @@ def search_two_stage(
     
     # Embed query once, reuse for both stages
     t0 = time.time()
-    query_embedding = _embed_query(db, query)
+    query_embedding = embed_query(db, query)
     embed_time = time.time() - t0
     
     if not query_embedding:
@@ -397,7 +397,7 @@ def search_entries_semantic(
         return entries
     
     # Get vector embedding for query
-    q_emb = _embed_query(db, query)
+    q_emb = embed_query(db, query)
     if not q_emb:
         logger.error("Failed to embed query")
         # Fallback to keyword search if embedding fails

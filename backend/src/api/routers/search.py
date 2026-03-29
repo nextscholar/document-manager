@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from src.db.session import get_db
 from src.db.models import Entry, RawFile, LLMProvider
 from src.llm_client import embed_text, generate_text, MODEL, LLMClient
-from src.rag.search import search_entries_semantic, search_two_stage, _embed_query
+from src.rag.search import search_entries_semantic, search_two_stage, embed_query
 from src.api.auth import get_current_user
 
 
@@ -244,7 +244,7 @@ def search_with_explanation(
 ):
     """Search with detailed explanation of scores and matches."""
     # Get query embedding using the DB-configured provider
-    query_embedding = _embed_query(db, query)
+    query_embedding = embed_query(db, query)
     if not query_embedding:
         raise HTTPException(status_code=500, detail="Failed to embed query")
     
@@ -371,8 +371,8 @@ def calculate_similarity(request: SimilarityRequest, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="Both texts are required")
     
     # Get embeddings for both texts using the DB-configured provider
-    emb1 = _embed_query(db, request.text1)
-    emb2 = _embed_query(db, request.text2)
+    emb1 = embed_query(db, request.text1)
+    emb2 = embed_query(db, request.text2)
     
     if not emb1 or not emb2:
         raise HTTPException(status_code=500, detail="Failed to generate embeddings")

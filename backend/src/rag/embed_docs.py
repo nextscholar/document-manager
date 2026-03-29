@@ -62,7 +62,7 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
             WHERE doc_status IN ('enriched', 'embed_error')
               AND doc_summary IS NOT NULL
               AND LENGTH(doc_summary) > 10
-            ORDER BY doc_status, id
+            ORDER BY CASE WHEN doc_status = 'enriched' THEN 0 ELSE 1 END, id
             LIMIT :limit
             FOR UPDATE SKIP LOCKED
         """), {"limit": limit}).fetchall()
