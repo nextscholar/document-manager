@@ -10,7 +10,9 @@ import os
 # ============================================================================
 
 # Embedding vector dimensions for nomic-embed-text and similar models
-EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "768"))
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "2048"))
+# EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "768"))
+
 
 # Maximum text length for document summaries and chunks
 MAX_TEXT_LENGTH = 4000  # ~1000 tokens
