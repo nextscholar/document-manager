@@ -4,13 +4,13 @@ Constants and Configuration Values for Archive Brain
 This module centralizes magic numbers and configuration constants used throughout
 the application to improve maintainability and reduce duplication.
 """
-
+import os
 # ============================================================================
 # Embedding and Vector Search Constants
 # ============================================================================
 
 # Embedding vector dimensions for nomic-embed-text and similar models
-EMBEDDING_DIMENSIONS = 2048
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "768"))
 
 # Maximum text length for document summaries and chunks
 MAX_TEXT_LENGTH = 4000  # ~1000 tokens
