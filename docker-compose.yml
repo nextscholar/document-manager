@@ -78,6 +78,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
+      - ./config:/app/config
       - worker_shared:/app/shared
       - ./archive_root:/data/archive
       - ./archive_root/inbox:/data/archive/inbox 
@@ -113,6 +114,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
+      - ./config:/app/config
       - worker_shared:/app/shared
       - ./archive_root:/data/archive
       - ./archive_root/inbox:/data/archive/inbox 
