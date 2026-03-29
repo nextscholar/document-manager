@@ -693,6 +693,50 @@ def retry_all_failed(db: Session = Depends(get_db)):
     return {"message": f"Reset {count} failed entries to pending"}
 
 
+@router.post("/docs/retry-embed-errors")
+def retry_doc_embed_errors(db: Session = Depends(get_db)):
+    """
+    Reset documents stuck in 'embed_error' state back to 'enriched' so the
+    worker will attempt to re-embed them on the next cycle.
+
+    This is useful after changing the embedding model in Settings – the new
+    model may return dimensions compatible with the DB schema, making a retry
+    worthwhile.  Documents with no doc_summary are left untouched (they would
+    fail immediately again).
+    """
+    result = db.execute(text("""
+        UPDATE raw_files
+        SET doc_status = 'enriched'
+        WHERE doc_status = 'embed_error'
+          AND doc_summary IS NOT NULL
+          AND LENGTH(doc_summary) > 10
+    """))
+    db.commit()
+    count = result.rowcount
+    return {"message": f"Reset {count} documents with embedding errors back to enriched", "count": count}
+
+
+@router.post("/docs/retry-all-errors")
+def retry_all_doc_errors(db: Session = Depends(get_db)):
+    """
+    Reset ALL documents in any error state ('error', 'embed_error') back to
+    'pending' so the worker will re-enrich and re-embed them from scratch.
+
+    Use this when you want to fully reprocess documents after a model or
+    configuration change.
+    """
+    result = db.execute(text("""
+        UPDATE raw_files
+        SET doc_status = 'pending',
+            doc_summary = NULL,
+            doc_embedding = NULL
+        WHERE doc_status IN ('error', 'embed_error')
+    """))
+    db.commit()
+    count = result.rowcount
+    return {"message": f"Reset {count} documents with errors back to pending", "count": count}
+
+
 @router.post("/entries/{entry_id}/re-enrich")
 def re_enrich_entry(entry_id: int, db: Session = Depends(get_db)):
     """Reset an entry for re-enrichment (clears metadata and embedding)."""

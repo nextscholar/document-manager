@@ -151,7 +151,7 @@ def main():
     if total_needing_embed == 0:
         logger.info("No enriched entries needing embedding found.")
         update_progress(0, 0, "")
-        return
+        return 0
     
     # Process in batches
     processed = 0
@@ -180,6 +180,7 @@ def main():
     
     update_progress(processed, total_needing_embed, "Complete")
     logger.info(f"Embedding complete. Processed {processed} entries.")
+    return processed
 
 if __name__ == "__main__":
     main()

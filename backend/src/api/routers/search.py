@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from src.db.session import get_db
 from src.db.models import Entry, RawFile, LLMProvider
 from src.llm_client import embed_text, generate_text, MODEL, LLMClient
-from src.rag.search import search_entries_semantic, search_two_stage
+from src.rag.search import search_entries_semantic, search_two_stage, embed_query
 from src.api.auth import get_current_user
 
 
@@ -243,8 +243,8 @@ def search_with_explanation(
     db: Session = Depends(get_db)
 ):
     """Search with detailed explanation of scores and matches."""
-    # Get query embedding
-    query_embedding = embed_text(query)
+    # Get query embedding using the DB-configured provider
+    query_embedding = embed_query(db, query)
     if not query_embedding:
         raise HTTPException(status_code=500, detail="Failed to embed query")
     
@@ -362,7 +362,7 @@ def search_two_stage_endpoint(
 # ============================================================================
 
 @router.post("/similarity")
-def calculate_similarity(request: SimilarityRequest):
+def calculate_similarity(request: SimilarityRequest, db: Session = Depends(get_db)):
     """
     Calculate cosine similarity between two pieces of text.
     Educational tool to demonstrate how semantic search works.
@@ -370,9 +370,9 @@ def calculate_similarity(request: SimilarityRequest):
     if not request.text1.strip() or not request.text2.strip():
         raise HTTPException(status_code=400, detail="Both texts are required")
     
-    # Get embeddings for both texts
-    emb1 = embed_text(request.text1)
-    emb2 = embed_text(request.text2)
+    # Get embeddings for both texts using the DB-configured provider
+    emb1 = embed_query(db, request.text1)
+    emb2 = embed_query(db, request.text2)
     
     if not emb1 or not emb2:
         raise HTTPException(status_code=500, detail="Failed to generate embeddings")

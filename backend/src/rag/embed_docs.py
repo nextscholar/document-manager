@@ -45,20 +45,24 @@ def embed_single_doc(doc_id: int, doc_summary: str) -> tuple:
 def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
     """
     Embed a batch of documents that have been enriched but not yet embedded.
+    Also retries documents that previously failed embedding (embed_error) so
+    that a model change or transient error doesn't permanently block them.
     Returns the number of documents successfully embedded.
     """
     db = SessionLocal()
     embedded_count = 0
     
     try:
-        # Get batch of enriched docs needing embedding
+        # Get batch of docs needing embedding:
+        # - 'enriched': first-time embedding
+        # - 'embed_error': previous attempt failed (retry so model changes are picked up)
         docs = db.execute(text("""
             SELECT id, doc_summary
             FROM raw_files
-            WHERE doc_status = 'enriched'
+            WHERE doc_status IN ('enriched', 'embed_error')
               AND doc_summary IS NOT NULL
               AND LENGTH(doc_summary) > 10
-            ORDER BY id
+            ORDER BY CASE WHEN doc_status = 'enriched' THEN 0 ELSE 1 END, id
             LIMIT :limit
             FOR UPDATE SKIP LOCKED
         """), {"limit": limit}).fetchall()
@@ -83,7 +87,10 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
                     if len(embedding) != EMBEDDING_DIMENSIONS:
                         logger.error(
                             f"Doc {doc_id}: embedding dimension mismatch "
-                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
+                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}). "
+                            f"The active embedding model produces {len(embedding)}-dimensional "
+                            f"vectors but the database schema expects {EMBEDDING_DIMENSIONS}. "
+                            f"Ensure the model returns {EMBEDDING_DIMENSIONS}-dimensional embeddings."
                         )
                         db.execute(text("""
                             UPDATE raw_files 

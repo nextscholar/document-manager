@@ -7,11 +7,30 @@ from sqlalchemy import text, func, literal
 
 from src.db.session import get_db
 from src.db.models import Entry, RawFile
-from src.llm_client import embed_text
+from src.llm_client import embed_text, LLMClient
 from src.constants import RRF_K, DEFAULT_SEARCH_RESULTS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+def embed_query(db: Session, text_to_embed: str) -> Optional[List[float]]:
+    """
+    Embed a search query using the currently configured LLM provider from the database.
+
+    Reads LLM settings each call so that provider/model changes made in the
+    Settings UI are picked up immediately without requiring a process restart.
+    Falls back to the module-level embed_text (env-var / multi-provider client)
+    if the DB lookup fails.
+    """
+    try:
+        from src.db.settings import get_llm_config
+        llm_config = get_llm_config(db)
+        client = LLMClient(llm_config)
+        return client.embed_text(text_to_embed)
+    except Exception as e:
+        logger.warning(f"DB-aware query embedding failed, falling back to default: {e}")
+        return embed_text(text_to_embed)
 
 # Search mode constants
 SEARCH_MODE_VECTOR = 'vector'
@@ -240,7 +259,7 @@ def search_two_stage(
     
     # Embed query once, reuse for both stages
     t0 = time.time()
-    query_embedding = embed_text(query)
+    query_embedding = embed_query(db, query)
     embed_time = time.time() - t0
     
     if not query_embedding:
@@ -378,7 +397,7 @@ def search_entries_semantic(
         return entries
     
     # Get vector embedding for query
-    q_emb = embed_text(query)
+    q_emb = embed_query(db, query)
     if not q_emb:
         logger.error("Failed to embed query")
         # Fallback to keyword search if embedding fails

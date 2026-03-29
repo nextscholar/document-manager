@@ -21,6 +21,17 @@ const PHASE_LABELS = {
 function WorkerItem({ worker }) {
   const statusIcon = STATUS_ICONS[worker.status] || '❓';
   const phaseLabel = worker.current_phase ? PHASE_LABELS[worker.current_phase] || worker.current_phase : null;
+
+  // Prefer active LLM info stored by the worker loop (reflects Settings changes)
+  // over the static Ollama server name from worker registration.
+  const activeLLMProvider = worker.active_llm_provider;
+  const activeModel = worker.active_model;
+  const activeEmbedModel = worker.active_embedding_model;
+
+  // Build a human-readable model label
+  const modelLabel = activeLLMProvider
+    ? `${activeLLMProvider}${activeModel ? ` / ${activeModel}` : ''}`
+    : worker.ollama_server_name || null;
   
   const formatTime = (isoString) => {
     if (!isoString) return 'Never';
@@ -43,9 +54,15 @@ function WorkerItem({ worker }) {
       </div>
       
       <div className={styles.workerDetails}>
-        {worker.ollama_server_name && (
+        {modelLabel && (
           <span className={styles.serverInfo}>
-            🖥️ {worker.ollama_server_name}
+            🤖 {modelLabel}
+          </span>
+        )}
+
+        {activeEmbedModel && (
+          <span className={styles.serverInfo}>
+            📐 {activeEmbedModel}
           </span>
         )}
         
