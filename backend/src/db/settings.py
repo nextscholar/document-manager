@@ -36,12 +36,35 @@ class AnthropicConfig(TypedDict):
     model: str
 
 
+class QwenConfig(TypedDict):
+    """Qwen (Alibaba Cloud DashScope) provider configuration."""
+    api_key: str
+    model: str
+    embedding_model: str
+
+
+class DeepSeekConfig(TypedDict):
+    """DeepSeek provider configuration."""
+    api_key: str
+    model: str
+
+
+class ZhipuConfig(TypedDict):
+    """Zhipu AI (GLM) provider configuration."""
+    api_key: str
+    model: str
+    embedding_model: str
+
+
 class LLMSettings(TypedDict):
     """LLM provider settings."""
     provider: str  # "ollama", "openai", "anthropic", "qwen", "deepseek", or "zhipu"
     ollama: OllamaConfig
     openai: OpenAIConfig
     anthropic: AnthropicConfig
+    qwen: QwenConfig
+    deepseek: DeepSeekConfig
+    zhipu: ZhipuConfig
 
 
 class SourcesConfig(TypedDict):
@@ -231,7 +254,7 @@ def get_all_settings(db: Session) -> Dict[str, SettingValue]:
     return settings
 
 
-def get_llm_config(db: Session) -> Union[OllamaConfig, OpenAIConfig, AnthropicConfig]:
+def get_llm_config(db: Session) -> Union[OllamaConfig, OpenAIConfig, AnthropicConfig, QwenConfig, DeepSeekConfig, ZhipuConfig]:
     """
     Get the active LLM configuration.
     
@@ -239,6 +262,15 @@ def get_llm_config(db: Session) -> Union[OllamaConfig, OpenAIConfig, AnthropicCo
     - OLLAMA_URL: Override the Ollama URL (for multi-worker setups)
     - OLLAMA_MODEL: Override the model name
     - OLLAMA_EMBEDDING_MODEL: Override the embedding model
+    - OLLAMA_VISION_MODEL: Override the vision model
+    - QWEN_API_KEY: Override the Qwen API key
+    - QWEN_MODEL: Override the Qwen model
+    - QWEN_EMBEDDING_MODEL: Override the Qwen embedding model
+    - DEEPSEEK_API_KEY: Override the DeepSeek API key
+    - DEEPSEEK_MODEL: Override the DeepSeek model
+    - ZHIPU_API_KEY: Override the Zhipu API key
+    - ZHIPU_MODEL: Override the Zhipu model
+    - ZHIPU_EMBEDDING_MODEL: Override the Zhipu embedding model
     """
     llm_settings = get_setting(db, "llm") or DEFAULT_SETTINGS["llm"]
     provider = llm_settings.get("provider", "ollama")
@@ -258,6 +290,25 @@ def get_llm_config(db: Session) -> Union[OllamaConfig, OpenAIConfig, AnthropicCo
             config["embedding_model"] = os.environ["OLLAMA_EMBEDDING_MODEL"]
         if os.environ.get("OLLAMA_VISION_MODEL"):
             config["vision_model"] = os.environ["OLLAMA_VISION_MODEL"]
+    elif provider == "qwen":
+        if os.environ.get("QWEN_API_KEY"):
+            config["api_key"] = os.environ["QWEN_API_KEY"]
+        if os.environ.get("QWEN_MODEL"):
+            config["model"] = os.environ["QWEN_MODEL"]
+        if os.environ.get("QWEN_EMBEDDING_MODEL"):
+            config["embedding_model"] = os.environ["QWEN_EMBEDDING_MODEL"]
+    elif provider == "deepseek":
+        if os.environ.get("DEEPSEEK_API_KEY"):
+            config["api_key"] = os.environ["DEEPSEEK_API_KEY"]
+        if os.environ.get("DEEPSEEK_MODEL"):
+            config["model"] = os.environ["DEEPSEEK_MODEL"]
+    elif provider == "zhipu":
+        if os.environ.get("ZHIPU_API_KEY"):
+            config["api_key"] = os.environ["ZHIPU_API_KEY"]
+        if os.environ.get("ZHIPU_MODEL"):
+            config["model"] = os.environ["ZHIPU_MODEL"]
+        if os.environ.get("ZHIPU_EMBEDDING_MODEL"):
+            config["embedding_model"] = os.environ["ZHIPU_EMBEDDING_MODEL"]
     
     return config
 
@@ -316,6 +367,9 @@ __all__ = [
     "OllamaConfig",
     "OpenAIConfig",
     "AnthropicConfig",
+    "QwenConfig",
+    "DeepSeekConfig",
+    "ZhipuConfig",
     "LLMSettings",
     "SourcesConfig",
     "HostPathMappings",

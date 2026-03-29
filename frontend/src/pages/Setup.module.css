@@ -1107,3 +1107,26 @@
   font-style: normal;
   color: var(--accent-color, #4ade80);
 }
+
+/* API Key input with show/hide toggle */
+.apiKeyInput {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.apiKeyInput input {
+  flex: 1;
+}
+
+.apiKeyToggle {
+  padding: 0 0.75rem;
+  background: var(--bg-secondary, #1e1e2e);
+  border: 1px solid var(--border-color, #333);
+  border-radius: 6px;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+}
+
+.apiKeyToggle:hover {
+  color: var(--text-primary, #fff);
+}
