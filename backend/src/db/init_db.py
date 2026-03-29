@@ -19,9 +19,9 @@ def init_db():
             Base.metadata.create_all(bind=engine)
             EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
             with engine.connect() as conn:
-                db.execute(text(f'ALTER TABLE raw_files ALTER COLUMN doc_embedding TYPE vector({EMBED_DIM})'))
-                db.execute(text(f'ALTER TABLE entries  ALTER COLUMN embedding     TYPE vector({EMBED_DIM})'))
-                db.commit()
+                conn.execute(text(f'ALTER TABLE raw_files ALTER COLUMN doc_embedding TYPE vector({EMBED_DIM})'))
+                conn.execute(text(f'ALTER TABLE entries  ALTER COLUMN embedding     TYPE vector({EMBED_DIM})'))
+                conn.commit()
             print("Tables created successfully.")
             return
         except OperationalError as e:
