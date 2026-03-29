@@ -1,4 +1,22 @@
 services:
+  db-init:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_NAME: ${DB_NAME:-archive_brain}
+    command: python -c "from src.db.init_db import init_db; init_db()"
+    restart: "no"
+    networks:
+      - archive_net
   db:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
@@ -79,6 +97,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       tika:
         condition: service_started
       ollama:
@@ -115,6 +135,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      db-init:
+        condition: service_completed_successfully
       ollama:
         condition: service_healthy
       tika:
