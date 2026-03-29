@@ -6,7 +6,6 @@ from src.db.session import engine
 from src.db.models import Base
 # Import Setting to ensure it's registered with Base
 from src.db.settings import Setting
-from src.constants import EMBEDDING_DIMENSIONS
 def init_db():
     print("Creating database tables...")
     # Simple retry logic for waiting for DB to be ready
@@ -18,6 +17,7 @@ def init_db():
                 conn.commit()
             
             Base.metadata.create_all(bind=engine)
+            from src.constants import EMBEDDING_DIMENSIONS
             EMBED_DIM = EMBEDDING_DIMENSIONS
             with engine.connect() as conn:
                 conn.execute(text(f'ALTER TABLE raw_files ALTER COLUMN doc_embedding TYPE vector({EMBED_DIM})'))
