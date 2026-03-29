@@ -17,8 +17,7 @@ def init_db():
                 conn.commit()
             
             Base.metadata.create_all(bind=engine)
-            from src.constants import EMBEDDING_DIMENSIONS
-            EMBED_DIM = EMBEDDING_DIMENSIONS
+            EMBED_DIM = 2048
             with engine.connect() as conn:
                 conn.execute(text(f'ALTER TABLE raw_files ALTER COLUMN doc_embedding TYPE vector({EMBED_DIM})'))
                 conn.execute(text(f'ALTER TABLE entries  ALTER COLUMN embedding     TYPE vector({EMBED_DIM})'))
