@@ -408,7 +408,7 @@ def main():
             processed = fast_enrich_batch(mode, limit=ENRICH_BATCH_SIZE * 10)  # Larger batches since no LLM
             if processed > 0:
                 logger.info(f"Fast enrichment ({mode}): processed {processed} entries")
-            return
+            return processed
         
         # Full LLM enrichment mode (original behavior)
         total_pending = db.query(func.count(Entry.id)).filter(
@@ -426,7 +426,7 @@ def main():
             logger.info("No pending entries found.")
             # Clear progress
             update_progress(0, 0, "")
-            return
+            return 0
 
         # Get entry IDs for parallel processing
         entry_ids = [e.id for e in entries]
@@ -449,6 +449,7 @@ def main():
                 logger.error(f"Future error for entry {entry_id}: {e}")
     
     logger.info(f"Batch complete: processed {completed}/{len(entry_ids)} entries")
+    return completed
 
 
 if __name__ == "__main__":

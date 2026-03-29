@@ -374,7 +374,10 @@ def run_pipeline():
                 total_iterations = 5
                 for i in range(total_iterations):  # 5 iterations x 20 batch = 100 docs/cycle
                     update_progress("enrich_docs", current=i+1, total=total_iterations, status="running")
-                    enrich_docs_main()
+                    processed = enrich_docs_main()
+                    if not processed:
+                        # Nothing left to enrich – skip remaining iterations
+                        break
                     if not check_phase_enabled(state, "enrich_docs"):
                         update_progress("enrich_docs", current=i+1, total=total_iterations, status="stopped")
                         logger.info("enrich_docs disabled mid-cycle, stopping early")
@@ -389,7 +392,10 @@ def run_pipeline():
                 total_iterations = 50
                 for i in range(total_iterations):  # 50 iterations x 100 batch = 5000 entries/cycle
                     update_progress("enrich", current=i+1, total=total_iterations, status="running")
-                    enrich_main()
+                    processed = enrich_main()
+                    if not processed:
+                        # Nothing left to enrich – skip remaining iterations
+                        break
                     if not check_phase_enabled(state, "enrich"):
                         update_progress("enrich", current=i+1, total=total_iterations, status="stopped")
                         logger.info("enrich disabled mid-cycle, stopping early")
@@ -404,7 +410,10 @@ def run_pipeline():
                 total_iterations = 10
                 for i in range(total_iterations):  # 10 iterations x 50 batch = 500 docs/cycle
                     update_progress("embed_docs", current=i+1, total=total_iterations, status="running")
-                    embed_docs_main()
+                    processed = embed_docs_main()
+                    if not processed:
+                        # Nothing left to embed – skip remaining iterations
+                        break
                     if not check_phase_enabled(state, "embed_docs"):
                         update_progress("embed_docs", current=i+1, total=total_iterations, status="stopped")
                         logger.info("embed_docs disabled mid-cycle, stopping early")
@@ -419,7 +428,10 @@ def run_pipeline():
                 total_iterations = 10
                 for i in range(total_iterations):  # More embedding iterations
                     update_progress("embed", current=i+1, total=total_iterations, status="running")
-                    embed_main()
+                    processed = embed_main()
+                    if not processed:
+                        # Nothing left to embed – skip remaining iterations
+                        break
                     if not check_phase_enabled(state, "embed"):
                         update_progress("embed", current=i+1, total=total_iterations, status="stopped")
                         logger.info("embed disabled mid-cycle, stopping early")
