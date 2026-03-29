@@ -79,6 +79,7 @@ services:
     restart: unless-stopped
     volumes:
       - worker_shared:/app/shared
+      - ./config:/app/config
       - ./archive_root:/data/archive
       - ./archive_root/inbox:/data/archive/inbox 
       - /root/test_paper:/data/archive/documents
@@ -113,6 +114,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     volumes:
+      - ./config:/app/config
       - worker_shared:/app/shared
       - ./archive_root:/data/archive
       - ./archive_root/inbox:/data/archive/inbox 
