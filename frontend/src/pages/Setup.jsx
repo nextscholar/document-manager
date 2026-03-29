@@ -22,9 +22,64 @@ import {
   Check,
   Terminal,
   HelpCircle,
-  ExternalLink
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Cloud
 } from 'lucide-react'
 import styles from './Setup.module.css'
+
+// Cloud provider model options (all non-Ollama providers that need an API key in setup)
+const CLOUD_PROVIDER_MODELS = {
+  openai: {
+    displayName: 'OpenAI',
+    chat: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+    embedding: ['text-embedding-3-small', 'text-embedding-3-large', 'text-embedding-ada-002'],
+    defaultChat: 'gpt-4o-mini',
+    defaultEmbedding: 'text-embedding-3-small',
+    apiKeyLink: 'https://platform.openai.com/api-keys',
+    apiKeyLabel: 'OpenAI Dashboard'
+  },
+  anthropic: {
+    displayName: 'Anthropic',
+    chat: ['claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'],
+    embedding: [],
+    defaultChat: 'claude-3-haiku-20240307',
+    defaultEmbedding: '',
+    apiKeyLink: 'https://console.anthropic.com/settings/keys',
+    apiKeyLabel: 'Anthropic Console'
+  },
+  qwen: {
+    displayName: 'Qwen (Alibaba)',
+    chat: ['qwen-max', 'qwen-plus', 'qwen-turbo', 'qwen-long', 'qwen-max-latest'],
+    embedding: ['text-embedding-v3'],
+    defaultChat: 'qwen-plus',
+    defaultEmbedding: 'text-embedding-v3',
+    apiKeyLink: 'https://dashscope.console.aliyun.com/apiKey',
+    apiKeyLabel: 'DashScope Console'
+  },
+  deepseek: {
+    displayName: 'DeepSeek',
+    chat: ['deepseek-chat', 'deepseek-reasoner'],
+    embedding: [],
+    defaultChat: 'deepseek-chat',
+    defaultEmbedding: '',
+    apiKeyLink: 'https://platform.deepseek.com/api_keys',
+    apiKeyLabel: 'DeepSeek Platform'
+  },
+  zhipu: {
+    displayName: 'Zhipu AI (GLM)',
+    chat: ['glm-4-plus', 'glm-4-air', 'glm-4-flash', 'glm-4v'],
+    embedding: ['embedding-3'],
+    defaultChat: 'glm-4-air',
+    defaultEmbedding: 'embedding-3',
+    apiKeyLink: 'https://open.bigmodel.cn/usercenter/apikeys',
+    apiKeyLabel: 'Zhipu Open Platform'
+  }
+}
+
+// Chinese cloud providers that are shown in their own section
+const CHINESE_PROVIDERS = ['qwen', 'deepseek', 'zhipu']
 
 const API_BASE = '/api'
 
@@ -58,6 +113,12 @@ function Setup() {
   const [selectedModel, setSelectedModel] = useState('')
   const [selectedEmbeddingModel, setSelectedEmbeddingModel] = useState('nomic-embed-text')
   const [loadingModels, setLoadingModels] = useState(false)
+  
+  // Cloud provider settings (Qwen, DeepSeek, Zhipu)
+  const [cloudApiKey, setCloudApiKey] = useState('')
+  const [cloudChatModel, setCloudChatModel] = useState('')
+  const [cloudEmbeddingModel, setCloudEmbeddingModel] = useState('')
+  const [showCloudApiKey, setShowCloudApiKey] = useState(false)
   
   // Source folders
   const [availableMounts, setAvailableMounts] = useState([])
@@ -196,6 +257,19 @@ function Setup() {
     setLoadingModels(false)
   }
 
+  const selectCloudProvider = (provider) => {
+    const cfg = CLOUD_PROVIDER_MODELS[provider]
+    if (cfg) {
+      // Only reset model selections when switching to a different provider
+      if (provider !== llmProvider) {
+        setCloudChatModel(cfg.defaultChat)
+        setCloudEmbeddingModel(cfg.defaultEmbedding)
+      }
+    }
+    setLlmProvider(provider)
+    setShowCloudApiKey(false)
+  }
+
   const toggleFolder = (folder) => {
     setSelectedFolders(prev => 
       prev.includes(folder)
@@ -252,7 +326,7 @@ function Setup() {
       })
       
       // If a model was selected, update LLM settings
-      if (selectedModel) {
+      if (llmProvider === 'ollama' && selectedModel) {
         const llmRes = await fetch(`${API_BASE}/settings/llm`)
         if (llmRes.ok) {
           const current = await llmRes.json()
@@ -267,6 +341,28 @@ function Setup() {
                 model: selectedModel,
                 embedding_model: selectedEmbeddingModel
               }
+            })
+          })
+        }
+      } else if (Object.keys(CLOUD_PROVIDER_MODELS).includes(llmProvider) && cloudApiKey) {
+        const llmRes = await fetch(`${API_BASE}/settings/llm`)
+        if (llmRes.ok) {
+          const current = await llmRes.json()
+          const providerConfig = {
+            ...current[llmProvider],
+            api_key: cloudApiKey,
+            model: cloudChatModel
+          }
+          if (cloudEmbeddingModel) {
+            providerConfig.embedding_model = cloudEmbeddingModel
+          }
+          await fetch(`${API_BASE}/settings/llm`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...current,
+              provider: llmProvider,
+              [llmProvider]: providerConfig
             })
           })
         }
@@ -470,6 +566,8 @@ function Setup() {
               Select which AI model provider to use for document analysis.
             </p>
             
+            {/* Self-Hosted */}
+            <h3 className={styles.sectionTitle}>🖥️ Self-Hosted</h3>
             <div className={styles.providerCards}>
               <div 
                 className={`${styles.providerCard} ${llmProvider === 'ollama' ? styles.selected : ''}`}
@@ -480,18 +578,64 @@ function Setup() {
                 <p>Run models locally on your hardware. Private and free.</p>
                 {llmProvider === 'ollama' && <CheckCircle2 className={styles.checkmark} />}
               </div>
-              
+            </div>
+
+            {/* Cloud APIs */}
+            <h3 className={styles.sectionTitle}>☁️ Cloud APIs</h3>
+            <div className={styles.providerCards}>
               <div 
-                className={`${styles.providerCard} ${llmProvider === 'openai' ? styles.selected : ''} ${styles.disabled}`}
-                title="Coming soon"
+                className={`${styles.providerCard} ${llmProvider === 'openai' ? styles.selected : ''}`}
+                onClick={() => selectCloudProvider('openai')}
               >
-                <Server size={32} />
+                <Zap size={32} />
                 <h3>OpenAI</h3>
-                <p>Use GPT-4 and other OpenAI models. Requires API key.</p>
-                <span className={styles.comingSoon}>Coming Soon</span>
+                <p>GPT-4o, GPT-4, embeddings. Requires API key.</p>
+                {llmProvider === 'openai' && <CheckCircle2 className={styles.checkmark} />}
+              </div>
+              <div 
+                className={`${styles.providerCard} ${llmProvider === 'anthropic' ? styles.selected : ''}`}
+                onClick={() => selectCloudProvider('anthropic')}
+              >
+                <Cloud size={32} />
+                <h3>Anthropic</h3>
+                <p>Claude 3.5 Sonnet, Claude 3 Haiku. Requires API key.</p>
+                {llmProvider === 'anthropic' && <CheckCircle2 className={styles.checkmark} />}
+              </div>
+            </div>
+
+            {/* Chinese Cloud APIs */}
+            <h3 className={styles.sectionTitle}>🇨🇳 Chinese Cloud APIs</h3>
+            <div className={styles.providerCards}>
+              <div 
+                className={`${styles.providerCard} ${llmProvider === 'qwen' ? styles.selected : ''}`}
+                onClick={() => selectCloudProvider('qwen')}
+              >
+                <Zap size={32} />
+                <h3>Qwen (Alibaba)</h3>
+                <p>Qwen-Max, Qwen-Plus — chat &amp; embeddings. Requires API key.</p>
+                {llmProvider === 'qwen' && <CheckCircle2 className={styles.checkmark} />}
+              </div>
+              <div 
+                className={`${styles.providerCard} ${llmProvider === 'deepseek' ? styles.selected : ''}`}
+                onClick={() => selectCloudProvider('deepseek')}
+              >
+                <Zap size={32} />
+                <h3>DeepSeek</h3>
+                <p>DeepSeek-Chat (V3), DeepSeek-Reasoner (R1). Requires API key.</p>
+                {llmProvider === 'deepseek' && <CheckCircle2 className={styles.checkmark} />}
+              </div>
+              <div 
+                className={`${styles.providerCard} ${llmProvider === 'zhipu' ? styles.selected : ''}`}
+                onClick={() => selectCloudProvider('zhipu')}
+              >
+                <Cloud size={32} />
+                <h3>Zhipu AI (GLM)</h3>
+                <p>GLM-4-Plus, GLM-4-Air — chat &amp; embeddings. Requires API key.</p>
+                {llmProvider === 'zhipu' && <CheckCircle2 className={styles.checkmark} />}
               </div>
             </div>
             
+            {/* Ollama model selection */}
             {llmProvider === 'ollama' && (
               <div className={styles.modelSelection}>
                 <h3>Select Models</h3>
@@ -580,6 +724,80 @@ function Setup() {
                 </button>
               </div>
             )}
+
+            {/* Cloud provider configuration */}
+            {Object.keys(CLOUD_PROVIDER_MODELS).includes(llmProvider) && (() => {
+              const cfg = CLOUD_PROVIDER_MODELS[llmProvider]
+              return (
+                <div className={styles.modelSelection}>
+                  <h3>Configure {cfg.displayName}</h3>
+
+                  <div className={styles.formGroup}>
+                    <label>API Key</label>
+                    <div className={styles.apiKeyInput}>
+                      <input
+                        type={showCloudApiKey ? 'text' : 'password'}
+                        value={cloudApiKey}
+                        onChange={e => setCloudApiKey(e.target.value)}
+                        placeholder="Enter your API key…"
+                      />
+                      <button
+                        type="button"
+                        className={styles.apiKeyToggle}
+                        onClick={() => setShowCloudApiKey(v => !v)}
+                        title={showCloudApiKey ? 'Hide key' : 'Show key'}
+                      >
+                        {showCloudApiKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                    <span className={styles.hint}>
+                      Get your API key from{' '}
+                      <a href={cfg.apiKeyLink} target="_blank" rel="noopener noreferrer">
+                        {cfg.apiKeyLabel} <ExternalLink size={12} />
+                      </a>
+                    </span>
+                  </div>
+
+                  <div className={styles.formGroup}>
+                    <label>Chat Model</label>
+                    <select
+                      value={cloudChatModel}
+                      onChange={e => setCloudChatModel(e.target.value)}
+                    >
+                      {cfg.chat.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <span className={styles.hint}>Used for generating summaries and tags</span>
+                  </div>
+
+                  {cfg.embedding.length > 0 && (
+                    <div className={styles.formGroup}>
+                      <label>Embedding Model</label>
+                      <select
+                        value={cloudEmbeddingModel}
+                        onChange={e => setCloudEmbeddingModel(e.target.value)}
+                      >
+                        {cfg.embedding.map(m => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                      <span className={styles.hint}>Used for semantic search</span>
+                    </div>
+                  )}
+
+                  {(llmProvider === 'deepseek' || llmProvider === 'anthropic') && (
+                    <div className={styles.infoBox}>
+                      <Info size={20} />
+                      <span>
+                        {cfg.displayName} does not provide an embedding API.
+                        Semantic search will use your Ollama embedding model as a fallback.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         )
       
@@ -946,13 +1164,31 @@ function Setup() {
               
               <div className={styles.summaryRow}>
                 <span className={styles.summaryLabel}>LLM Provider</span>
-                <span className={styles.summaryValue}>{llmProvider}</span>
+                <span className={styles.summaryValue}>
+                  {llmProvider === 'ollama'
+                    ? 'Ollama (Local)'
+                    : (CLOUD_PROVIDER_MODELS[llmProvider]?.displayName ?? llmProvider)}
+                </span>
               </div>
               
               {llmProvider === 'ollama' && selectedModel && (
                 <div className={styles.summaryRow}>
                   <span className={styles.summaryLabel}>Chat Model</span>
                   <span className={styles.summaryValue}>{selectedModel}</span>
+                </div>
+              )}
+
+              {Object.keys(CLOUD_PROVIDER_MODELS).includes(llmProvider) && cloudChatModel && (
+                <div className={styles.summaryRow}>
+                  <span className={styles.summaryLabel}>Chat Model</span>
+                  <span className={styles.summaryValue}>{cloudChatModel}</span>
+                </div>
+              )}
+
+              {Object.keys(CLOUD_PROVIDER_MODELS).includes(llmProvider) && cloudEmbeddingModel && (
+                <div className={styles.summaryRow}>
+                  <span className={styles.summaryLabel}>Embedding Model</span>
+                  <span className={styles.summaryValue}>{cloudEmbeddingModel}</span>
                 </div>
               )}
               
