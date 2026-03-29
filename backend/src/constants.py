@@ -10,7 +10,7 @@ the application to improve maintainability and reduce duplication.
 # ============================================================================
 
 # Embedding vector dimensions for nomic-embed-text and similar models
-EMBEDDING_DIMENSIONS = 768
+EMBEDDING_DIMENSIONS = 2048
 
 # Maximum text length for document summaries and chunks
 MAX_TEXT_LENGTH = 4000  # ~1000 tokens
