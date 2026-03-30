@@ -48,6 +48,28 @@ def _looks_like_context_length_error(response: Optional[requests.Response]) -> b
         return False
     return "context length" in body or "input length exceeds" in body
 
+
+def _looks_like_billing_error(response: Optional[requests.Response]) -> bool:
+    """Return True when a 429 response is actually a billing/quota error, not a rate limit."""
+    if response is None:
+        return False
+    try:
+        body = response.text or ""
+    except Exception:
+        return False
+    # ZhipuAI error code 1113 means "Insufficient balance or no available resource packages"
+    billing_signals = [
+        "1113",
+        "余额不足",          # "Insufficient balance"
+        "insufficient balance",
+        "quota exceeded",
+        "insufficient_quota",
+        "billing",
+        "no available resource",
+    ]
+    body_lower = body.lower()
+    return any(signal.lower() in body_lower for signal in billing_signals)
+
 # OpenAI settings
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
@@ -212,6 +234,14 @@ class LLMClient:
                     body = resp.text if resp is not None else ""
                 except Exception:
                     body = ""
+                # 429 from billing/quota exhaustion is not a transient rate limit —
+                # log a clear, actionable message and stop immediately.
+                if status == 429 and _looks_like_billing_error(resp):
+                    logger.error(
+                        f"OpenAI-compat embedding failed ({base_url}): insufficient balance or "
+                        f"quota exhausted — please recharge your account. body={body[:300]}"
+                    )
+                    return None
                 logger.error(
                     f"OpenAI-compat embedding failed ({base_url}): {e} | body={body[:300]}"
                 )
@@ -221,6 +251,10 @@ class LLMClient:
                 ):
                     prompt = _sanitize_embedding_prompt(prompt, max(1, len(prompt) // 2))
                     time.sleep(EMBEDDING_RETRY_BASE_DELAY_S * attempt)
+                    continue
+                # Retry with backoff on genuine rate-limit (429) errors
+                if status == 429 and attempt < EMBEDDING_RETRY_ATTEMPTS:
+                    time.sleep(EMBEDDING_RETRY_BASE_DELAY_S * (2 ** attempt))
                     continue
                 return None
             except Exception as e:
