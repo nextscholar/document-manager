@@ -139,6 +139,7 @@ DEFAULT_SETTINGS = {
     },
     "sources": {
         "include": [
+            "/data/archive/inbox",
             "/data/archive/docs",
             "/data/archive/story"
         ],

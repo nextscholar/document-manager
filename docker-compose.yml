@@ -13,6 +13,7 @@ services:
       DB_USER: ${DB_USER:-postgres}
       DB_PASSWORD: ${DB_PASSWORD:-password}
       DB_NAME: ${DB_NAME:-archive_brain}
+      EMBED_DIM: ${EMBED_DIM:-768}
     command: python -c "from src.db.init_db import init_db; init_db()"
     restart: "no"
     networks:
@@ -95,6 +96,7 @@ services:
       OLLAMA_MOCK: ${OLLAMA_MOCK:-false}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2:1.5b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      EMBED_DIM: ${EMBED_DIM:-768}
     depends_on:
       db:
         condition: service_healthy
@@ -130,6 +132,7 @@ services:
       OLLAMA_MOCK: ${OLLAMA_MOCK:-false}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2:1.5b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      EMBED_DIM: ${EMBED_DIM:-768}
       TIKA_URL: http://tika:9998
       STACK_PROJECT_ID: ${STACK_PROJECT_ID:-}
       STACK_SECRET_SERVER_KEY: ${STACK_SECRET_SERVER_KEY:-}
