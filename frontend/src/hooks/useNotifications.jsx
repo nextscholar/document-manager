@@ -23,6 +23,7 @@ export function NotificationProvider({ children }) {
   
   // Use refs for values that shouldn't trigger effect re-runs
   const lastProgressRef = useRef(null)
+  const lastDocErrorCountRef = useRef(null)
   const shownNotificationsRef = useRef(new Set())
   const toastTimeoutsRef = useRef(new Map())
   
@@ -198,12 +199,45 @@ export function NotificationProvider({ children }) {
       }
     }
 
+    // Poll doc-level errors separately (not available in worker/progress)
+    const checkDocErrors = async () => {
+      try {
+        const res = await fetch('/api/system/doc-counts')
+        if (!res.ok) return
+        const data = await res.json()
+        const errorCount = data.error || 0
+        const prev = lastDocErrorCountRef.current
+
+        if (prev !== null && errorCount > prev) {
+          const newErrors = errorCount - prev
+          const docErrorKey = `doc-errors-${errorCount}`
+          if (!shownNotifications.has(docErrorKey)) {
+            shownNotifications.add(docErrorKey)
+            addNotification({
+              type: 'error',
+              title: 'Document Processing Failed',
+              message: `${newErrors} document${newErrors !== 1 ? 's' : ''} failed processing. Go to the Dashboard to retry.`,
+              icon: 'alert-circle'
+            })
+          }
+        }
+        lastDocErrorCountRef.current = errorCount
+      } catch (err) {
+        // Silently fail
+      }
+    }
+
     // Poll every 10 seconds
     const interval = setInterval(checkMilestones, 10000)
     checkMilestones() // Initial check
 
+    // Poll doc errors every 30 seconds (less frequent)
+    const docErrorInterval = setInterval(checkDocErrors, 30000)
+    checkDocErrors() // Initial check
+
     return () => {
       clearInterval(interval)
+      clearInterval(docErrorInterval)
       // Clean up any pending toast timeouts
       toastTimeoutsRef.current.forEach(timeoutId => clearTimeout(timeoutId))
       toastTimeoutsRef.current.clear()

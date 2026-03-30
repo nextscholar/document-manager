@@ -443,10 +443,16 @@ def run_pipeline():
                     update_progress("embed", status="idle")
                 
             logger.info("Cycle complete. Sleeping for 5 seconds...")
+            # Clear current_phase during idle sleep so the UI doesn't show a
+            # stale "Processing: ..." badge when there is nothing left to do.
+            # We keep status="active" because the worker is still running and
+            # will start the next cycle shortly (it is not paused/stopped).
+            send_heartbeat(status="active", current_phase=None)
             time.sleep(5)
             
         except Exception as e:
             logger.error(f"Pipeline error: {e}", exc_info=True)
+            send_heartbeat(status="active", current_phase=None)
             time.sleep(10)
 
 if __name__ == "__main__":

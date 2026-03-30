@@ -172,8 +172,9 @@ def ask(request: AskRequest, db: Session = Depends(get_db), user_id: Optional[st
     has_more = end_idx < total_found
     
     # Build context from paginated sources
-    for i, source in enumerate(paginated_sources):
-        context_parts.append(f"Document {i+1}:\nTitle: {source['title']}\nContent: {source['entry_text']}\n")
+    for source in paginated_sources:
+        doc_label = source['title'] or 'Untitled'
+        context_parts.append(f"[{doc_label}]:\nContent: {source['entry_text']}\n")
     
     # Remove entry_text from response (not needed in frontend)
     sources = [{k: v for k, v in s.items() if k != 'entry_text'} for s in paginated_sources]
@@ -183,6 +184,7 @@ def ask(request: AskRequest, db: Session = Depends(get_db), user_id: Optional[st
     # 3. Prompt
     prompt = f"""You are my personal archive assistant.
 Use ONLY the following documents to answer the question.
+When citing a source, refer to it by its document title (shown in brackets), not by a number.
 If the answer is not in these documents, say "I can't find that in this archive."
 
 Documents:

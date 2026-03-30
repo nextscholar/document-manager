@@ -522,6 +522,25 @@
   font-size: var(--font-size-sm);
 }
 
+.retryErrorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: var(--spacing-xs);
+  padding: 2px var(--spacing-sm);
+  background: rgba(255, 100, 100, 0.2);
+  color: var(--color-error);
+  border: 1px solid rgba(255, 100, 100, 0.4);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.retryErrorBtn:hover {
+  background: rgba(255, 100, 100, 0.35);
+}
+
 /* Phase Context - explains what's happening and why */
 .phaseContext {
   display: flex;
