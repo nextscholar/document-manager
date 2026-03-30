@@ -10,9 +10,9 @@ import os
 # ============================================================================
 
 # Embedding vector dimensions - must match the active embedding model output size.
-# Zhipu embedding-3 (default) outputs 2048-dimensional vectors.
-# Set EMBED_DIM environment variable to override (e.g., 768 for nomic-embed-text).
-EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "2048"))
+# nomic-embed-text (default local model) outputs 768-dimensional vectors.
+# Set EMBED_DIM environment variable to override (e.g., 2048 for Zhipu embedding-3).
+EMBEDDING_DIMENSIONS = int(os.getenv("EMBED_DIM", "768"))
 
 
 # Maximum text length for document summaries and chunks

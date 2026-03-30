@@ -8,38 +8,17 @@ This module embeds doc_summary into doc_embedding for:
 
 import logging
 from typing import Dict, List
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from src.db.session import SessionLocal
 from src.db.models import RawFile
-from src.llm_client import embed_text
+from src.llm_client import embed_texts
 from src.constants import DOC_EMBED_BATCH_SIZE, EMBEDDING_DIMENSIONS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-
-# Parallel workers for embedding (embedding is fast, can parallelize)
-DOC_EMBED_WORKERS = 4
-
-
-def embed_single_doc(doc_id: int, doc_summary: str) -> tuple:
-    """
-    Embed a single document's summary.
-    Returns (doc_id, embedding) or (doc_id, None) on failure.
-    """
-    try:
-        if not doc_summary or len(doc_summary.strip()) < 10:
-            return (doc_id, None)
-        
-        embedding = embed_text(doc_summary)
-        return (doc_id, embedding)
-        
-    except Exception as e:
-        logger.error(f"Error embedding doc {doc_id}: {e}")
-        return (doc_id, None)
 
 
 def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
@@ -47,11 +26,15 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
     Embed a batch of documents that have been enriched but not yet embedded.
     Also retries documents that previously failed embedding (embed_error) so
     that a model change or transient error doesn't permanently block them.
+
+    Uses the provider's native batch API (single HTTP round-trip for all
+    summaries) to maximise throughput on local Ollama.
+
     Returns the number of documents successfully embedded.
     """
     db = SessionLocal()
     embedded_count = 0
-    
+
     try:
         # Get batch of docs needing embedding:
         # - 'enriched': first-time embedding
@@ -66,62 +49,60 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
             LIMIT :limit
             FOR UPDATE SKIP LOCKED
         """), {"limit": limit}).fetchall()
-        
+
         if not docs:
             logger.info("No documents pending doc-level embedding")
             return 0
-        
+
         logger.info(f"Embedding {len(docs)} documents...")
-        
-        # Parallel embedding
-        with ThreadPoolExecutor(max_workers=DOC_EMBED_WORKERS) as executor:
-            futures = {
-                executor.submit(embed_single_doc, doc[0], doc[1]): doc[0]
-                for doc in docs
-            }
-            
-            for future in as_completed(futures):
-                doc_id, embedding = future.result()
-                
-                if embedding:
-                    if len(embedding) != EMBEDDING_DIMENSIONS:
-                        logger.error(
-                            f"Doc {doc_id}: embedding dimension mismatch "
-                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}). "
-                            f"The active embedding model produces {len(embedding)}-dimensional "
-                            f"vectors but the database schema expects {EMBEDDING_DIMENSIONS}. "
-                            f"Ensure the model returns {EMBEDDING_DIMENSIONS}-dimensional embeddings."
-                        )
-                        db.execute(text("""
-                            UPDATE raw_files 
-                            SET doc_status = 'embed_error'
-                            WHERE id = :id
-                        """), {"id": doc_id})
-                        db.commit()
-                        continue
-                    # Update the database – cast the text literal to vector explicitly so
-                    # PostgreSQL does not raise "expression is of type text, not vector".
+
+        # Single batch call — one HTTP round-trip for all summaries
+        summaries = [doc[1] for doc in docs]
+        embeddings = embed_texts(summaries)
+
+        # Safety: pad if batch returned fewer results than expected
+        if len(embeddings) < len(docs):
+            embeddings.extend([None] * (len(docs) - len(embeddings)))
+
+        for (doc_id, _), embedding in zip(docs, embeddings):
+            if embedding:
+                if len(embedding) != EMBEDDING_DIMENSIONS:
+                    logger.error(
+                        f"Doc {doc_id}: embedding dimension mismatch "
+                        f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}). "
+                        f"The active embedding model produces {len(embedding)}-dimensional "
+                        f"vectors but the database schema expects {EMBEDDING_DIMENSIONS}. "
+                        f"Ensure the model returns {EMBEDDING_DIMENSIONS}-dimensional embeddings."
+                    )
                     db.execute(text("""
-                        UPDATE raw_files 
-                        SET doc_embedding = :embedding::vector,
-                            doc_status = 'embedded'
-                        WHERE id = :id
-                    """), {"embedding": str(embedding), "id": doc_id})
-                    
-                    embedded_count += 1
-                else:
-                    # Mark as error
-                    db.execute(text("""
-                        UPDATE raw_files 
+                        UPDATE raw_files
                         SET doc_status = 'embed_error'
                         WHERE id = :id
                     """), {"id": doc_id})
-                    logger.warning(f"Failed to embed doc {doc_id}")
-        
+                    db.commit()
+                    continue
+                # Update the database – cast the text literal to vector explicitly so
+                # PostgreSQL does not raise "expression is of type text, not vector".
+                db.execute(text("""
+                    UPDATE raw_files
+                    SET doc_embedding = :embedding::vector,
+                        doc_status = 'embedded'
+                    WHERE id = :id
+                """), {"embedding": str(embedding), "id": doc_id})
+                embedded_count += 1
+            else:
+                # Mark as error
+                db.execute(text("""
+                    UPDATE raw_files
+                    SET doc_status = 'embed_error'
+                    WHERE id = :id
+                """), {"id": doc_id})
+                logger.warning(f"Failed to embed doc {doc_id}")
+
         db.commit()
         logger.info(f"Batch complete: {embedded_count}/{len(docs)} docs embedded")
         return embedded_count
-        
+
     except Exception as e:
         logger.error(f"Doc embedding batch error: {e}", exc_info=True)
         db.rollback()
