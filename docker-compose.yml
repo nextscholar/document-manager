@@ -81,9 +81,7 @@ services:
     volumes:
       - worker_shared:/app/shared
       - ./config:/app/config
-      - ./archive_root:/data/archive
-      - ./archive_root/inbox:/data/archive/inbox 
-      - /root/test_paper:/data/archive/documents
+      - ./archive_root:/data/archive/inbox 
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
@@ -118,9 +116,7 @@ services:
     volumes:
       - ./config:/app/config
       - worker_shared:/app/shared
-      - ./archive_root:/data/archive
-      - ./archive_root/inbox:/data/archive/inbox 
-      - /root/test_paper:/data/archive/documents
+      - ./archive_root:/data/archive/inbox 
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
