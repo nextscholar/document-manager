@@ -1,3 +1,0 @@
-This is a test document.
-It has some content.
-End of document.
