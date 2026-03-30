@@ -117,9 +117,10 @@ function Home() {
         
         // Build context from search results and ask LLM
         if (searchData.entries && searchData.entries.length > 0) {
-          const context = searchData.entries.map((e, i) => 
-            `Document ${i+1}:\nTitle: ${e.title || 'Untitled'}\nContent: ${e.entry_text}\n`
-          ).join('\n')
+          const context = searchData.entries.map(e => {
+            const docLabel = e.title || 'Untitled'
+            return `[${docLabel}]:\nContent: ${e.entry_text}\n`
+          }).join('\n')
           
           const askRes = await apiFetch('/api/chat', {
             method: 'POST',
@@ -127,7 +128,7 @@ function Home() {
             body: JSON.stringify({
               messages: [{
                 role: 'user',
-                content: `You are my personal archive assistant.\nUse ONLY the following documents to answer the question.\nIf the answer is not in these documents, say "I can't find that in this archive."\n\nDocuments:\n${context}\n\nQuestion: ${query}`
+                content: `You are my personal archive assistant.\nUse ONLY the following documents to answer the question.\nWhen citing a source, refer to it by its document title (shown in brackets), not by a number.\nIf the answer is not in these documents, say "I can't find that in this archive."\n\nDocuments:\n${context}\n\nQuestion: ${query}`
               }],
               model: selectedModel
             })

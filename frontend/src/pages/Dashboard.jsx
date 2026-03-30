@@ -323,6 +323,19 @@ function Dashboard() {
     }
   }
 
+  const retryDocErrors = async () => {
+    try {
+      const res = await fetch('/api/docs/retry-all-errors', { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      addToast(data.message || 'Queued error documents for reprocessing', 'success')
+      fetchDocCounts()
+    } catch (err) {
+      console.error('Failed to retry doc errors:', err)
+      addToast('Failed to retry document errors', 'error')
+    }
+  }
+
   // Initial load - fast endpoints first
   useEffect(() => {
     // Load critical data immediately
@@ -602,7 +615,10 @@ function Dashboard() {
           </div>
           {docCounts?.error > 0 && (
             <div className={styles.errorBadge}>
-              <AlertCircle size={14} /> {docCounts.error} errors
+              <AlertCircle size={14} /> {docCounts.error} document{docCounts.error !== 1 ? 's' : ''} failed processing
+              <button className={styles.retryErrorBtn} onClick={retryDocErrors} title="Reset failed documents so the worker will reprocess them">
+                <RefreshCw size={12} /> Retry
+              </button>
             </div>
           )}
           
