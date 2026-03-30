@@ -85,7 +85,7 @@ def embed_docs_batch(limit: int = DOC_EMBED_BATCH_SIZE) -> int:
                 # PostgreSQL does not raise "expression is of type text, not vector".
                 db.execute(text("""
                     UPDATE raw_files
-                    SET doc_embedding = :embedding::vector,
+                    SET doc_embedding = CAST(:embedding AS vector),
                         doc_status = 'embedded'
                     WHERE id = :id
                 """), {"embedding": str(embedding), "id": doc_id})
