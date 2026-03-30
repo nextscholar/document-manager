@@ -21,8 +21,8 @@ ALTER TABLE raw_files ADD COLUMN IF NOT EXISTS author_bucket INTEGER;
 -- Document summary (LLM-generated, covers whole file)
 ALTER TABLE raw_files ADD COLUMN IF NOT EXISTS doc_summary TEXT;
 
--- Document-level embedding (768 dims for nomic-embed-text)
-ALTER TABLE raw_files ADD COLUMN IF NOT EXISTS doc_embedding vector(768);
+-- Document-level embedding (2048 dims for Zhipu embedding-3)
+ALTER TABLE raw_files ADD COLUMN IF NOT EXISTS doc_embedding vector(2048);
 
 -- Document-level search vector for hybrid search
 ALTER TABLE raw_files ADD COLUMN IF NOT EXISTS doc_search_vector TSVECTOR;

@@ -168,7 +168,7 @@ class Entry(Base):
     author_bucket = Column(Integer)  # hash(author_key) % AUTHOR_BUCKET_COUNT for partitioning
 
     search_vector = Column(TSVECTOR)
-    embedding = Column(Vector(EMBEDDING_DIMENSIONS))  # Standard dimensions for models (e.g. nomic-embed-text)
+    embedding = Column(Vector(EMBEDDING_DIMENSIONS))  # Embedding vector (2048 dims for Zhipu embedding-3)
     status = Column(Text, default='pending')  # 'pending', 'enriched', 'error'
     retry_count = Column(Integer, default=0)  # Track failed enrichment attempts
 
