@@ -415,6 +415,159 @@ class LLMClient:
                     continue
                 return None
 
+    def _ollama_embed_batch(self, texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
+        """Embed multiple texts in a single Ollama /api/embed request (batch API).
+
+        Sending all inputs in one HTTP request lets Ollama process them in a
+        single batched forward pass, which is far more efficient than one
+        request per text.  Falls back to individual /api/embeddings calls if
+        the batch endpoint is not available (e.g. older Ollama builds that
+        pre-date the /api/embed endpoint).
+        """
+        if not texts:
+            return []
+        model = model or self.ollama_embedding_model
+        url = f"{self.ollama_url}/api/embed"
+
+        sanitized = [_sanitize_embedding_prompt(t, EMBEDDING_MAX_CHARS) for t in texts]
+
+        # Scale timeout with batch size: base 60 s + 10 s per additional text
+        timeout = 60 + 10 * len(sanitized)
+        try:
+            response = requests.post(
+                url,
+                json={"model": model, "input": sanitized},
+                timeout=timeout,
+            )
+            response.raise_for_status()
+            result = response.json()
+            embeddings = result.get("embeddings", [])
+            # Pad with None if the server returned fewer results than requested
+            if len(embeddings) < len(texts):
+                embeddings.extend([None] * (len(texts) - len(embeddings)))
+            return embeddings
+        except requests.HTTPError as e:
+            resp = getattr(e, "response", None)
+            status = getattr(resp, "status_code", None)
+            # 404 means older Ollama that doesn't have /api/embed — fall back silently
+            if status == 404:
+                logger.debug("Ollama /api/embed not available (404); falling back to per-text /api/embeddings")
+            else:
+                logger.warning(
+                    f"Ollama batch embedding failed (status={status}): {e}; "
+                    "falling back to per-text embedding"
+                )
+            return [self._ollama_embed(t, model) for t in texts]
+        except Exception as e:
+            logger.warning(
+                f"Ollama batch embedding failed: {e}; falling back to per-text embedding"
+            )
+            return [self._ollama_embed(t, model) for t in texts]
+
+    def _openai_embed_batch(self, texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
+        """Embed multiple texts using the OpenAI /embeddings endpoint in one request."""
+        if not texts:
+            return []
+        if not self.openai_api_key:
+            logger.error("OpenAI API key not configured")
+            return [None] * len(texts)
+
+        model = model or self.openai_embedding_model
+        sanitized = [_sanitize_embedding_prompt(t, EMBEDDING_MAX_CHARS) for t in texts]
+
+        try:
+            response = requests.post(
+                "https://api.openai.com/v1/embeddings",
+                headers={
+                    "Authorization": f"Bearer {self.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": model, "input": sanitized},
+                timeout=60,
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+            # The API guarantees index order but sort defensively
+            data.sort(key=lambda x: x.get("index", 0))
+            embeddings: List[Optional[List[float]]] = [item.get("embedding") for item in data]
+            if len(embeddings) < len(texts):
+                embeddings.extend([None] * (len(texts) - len(embeddings)))
+            return embeddings
+        except Exception as e:
+            logger.error(f"OpenAI batch embedding failed: {e}; falling back to per-text embedding")
+            return [self._openai_embed(t, model) for t in texts]
+
+    def _openai_compat_embed_batch(
+        self,
+        texts: List[str],
+        api_key: str,
+        base_url: str,
+        model: str,
+        max_chars: Optional[int] = None,
+    ) -> List[Optional[List[float]]]:
+        """Embed multiple texts via any OpenAI-compatible /embeddings endpoint in one request.
+
+        Falls back to individual calls if the provider does not support array
+        input (e.g. ZhipuAI only accepts a single string per request).
+        """
+        if not texts:
+            return []
+        char_limit = max_chars if max_chars is not None else EMBEDDING_MAX_CHARS
+        sanitized = [_sanitize_embedding_prompt(t, char_limit) for t in texts]
+
+        try:
+            response = requests.post(
+                f"{base_url}/embeddings",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={"model": model, "input": sanitized},
+                timeout=60,
+            )
+            response.raise_for_status()
+            data = response.json().get("data", [])
+            data.sort(key=lambda x: x.get("index", 0))
+            embeddings: List[Optional[List[float]]] = [item.get("embedding") for item in data]
+            if len(embeddings) < len(texts):
+                embeddings.extend([None] * (len(texts) - len(embeddings)))
+            return embeddings
+        except Exception as e:
+            logger.warning(
+                f"OpenAI-compat batch embedding failed ({base_url}): {e}; "
+                "falling back to per-text embedding"
+            )
+            return [
+                self._openai_compat_embed(t, api_key, base_url, model, max_chars)
+                for t in texts
+            ]
+
+    def embed_texts(self, texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple texts efficiently using the provider's batch API.
+
+        For Ollama this sends all texts in a single /api/embed request so the
+        model can process them in one batched forward pass.  For cloud providers
+        the batch endpoint is used where supported, with automatic fallback to
+        individual calls.
+        """
+        if not texts:
+            return []
+        if self.provider == "openai":
+            return self._openai_embed_batch(texts, model)
+        elif self.provider == "qwen":
+            return self._openai_compat_embed_batch(
+                texts, self.qwen_api_key, self.qwen_api_base, model or self.qwen_embedding_model
+            )
+        elif self.provider == "zhipu":
+            return self._openai_compat_embed_batch(
+                texts, self.zhipu_api_key, self.zhipu_api_base,
+                model or self.zhipu_embedding_model,
+                max_chars=ZHIPU_EMBEDDING_MAX_CHARS,
+            )
+        else:
+            # Ollama (and providers that fall back to Ollama, e.g. Anthropic/DeepSeek)
+            return self._ollama_embed_batch(texts, model)
+
     def _ollama_describe_image(self, image_path: str, model: Optional[str] = None, prompt: str = "") -> Optional[str]:
         model = model or self.ollama_vision_model
         
@@ -773,6 +926,19 @@ class MultiProviderClient:
         client = self._get_client(provider)
         logger.debug(f"Routing embedding to: {provider['name']}")
         return client.embed_text(text, model)
+
+    def embed_texts(self, texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple texts efficiently using the provider's batch API."""
+        if not texts:
+            return []
+        provider = self._select_provider('embedding')
+        if not provider:
+            logger.error("No providers available for embedding")
+            return [None] * len(texts)
+
+        client = self._get_client(provider)
+        logger.debug(f"Routing batch embedding ({len(texts)} texts) to: {provider['name']}")
+        return client.embed_texts(texts, model)
     
     def describe_image(self, image_path: str, model: Optional[str] = None, prompt: Optional[str] = None) -> Optional[str]:
         """Describe image, routing to an available provider with vision capability."""
@@ -950,6 +1116,27 @@ def embed_text(text: str, model: Optional[str] = None) -> Optional[List[float]]:
                 time.sleep(EMBEDDING_RETRY_BASE_DELAY_S * attempt)
                 continue
             return None
+
+def embed_texts(texts: List[str], model: Optional[str] = None) -> List[Optional[List[float]]]:
+    """Generate embeddings for multiple texts in a single efficient batch call.
+
+    Uses the native batch API of each provider:
+    - **Ollama**: POST /api/embed with ``input`` as a list → single forward pass
+    - **OpenAI / OpenAI-compatible**: POST /embeddings with ``input`` as a list
+    Falls back to individual calls automatically when a provider does not
+    support array input.
+    """
+    if MOCK_MODE:
+        import random
+        return [[random.random() for _ in range(EMBEDDING_DIMENSIONS)] for _ in texts]
+
+    global _multi_provider_client
+    if _multi_provider_client and _multi_provider_client.providers:
+        return _multi_provider_client.embed_texts(texts, model)
+
+    # Fall back to legacy Ollama batch behavior
+    client = get_client()
+    return client._ollama_embed_batch(texts, model)
 
 def generate_text(prompt: str, model: str = MODEL) -> Optional[str]:
     if MOCK_MODE:

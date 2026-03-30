@@ -2,13 +2,12 @@ import logging
 import json
 import os
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from src.db.session import get_db
 from src.db.models import Entry
-from src.llm_client import embed_text
+from src.llm_client import embed_text, embed_texts
 from src.constants import EMBED_BATCH_SIZE, EMBEDDING_DIMENSIONS
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -22,8 +21,6 @@ else:
 
 EMBED_PROGRESS_FILE = os.path.join(SHARED_DIR, "embed_progress.json")
 
-# Batch processing config
-MAX_WORKERS = 4  # Number of concurrent threads
 
 def update_progress(current: int, total: int, entry_title: str = ""):
     """Update the embedding progress file."""
@@ -93,49 +90,47 @@ def embed_entry(db: Session, entry: Entry):
 
 def embed_batch(db: Session, entries: list) -> int:
     """
-    Embed multiple entries in parallel using ThreadPoolExecutor.
+    Embed multiple entries using the provider's native batch API.
+
+    For local Ollama this sends all texts in a single /api/embed request so
+    the model processes them in one batched forward pass — much faster than
+    one HTTP call per entry.  For cloud providers the batch endpoint is used
+    where supported, with automatic per-text fallback.
+
     Returns the number of successfully embedded entries.
     """
     if not entries:
         return 0
-    
-    # Prepare texts for embedding (outside of threads)
+
+    # Prepare texts for embedding
     entry_texts = [(e.id, build_embed_text(e)) for e in entries]
     entry_map = {e.id: e for e in entries}
-    
+    texts = [text for _, text in entry_texts]
+
+    # Single batch call — one HTTP round-trip for all texts
+    embeddings = embed_texts(texts)
+
+    # Safety: if batch returned fewer results than expected, pad with None
+    if len(embeddings) < len(texts):
+        embeddings.extend([None] * (len(texts) - len(embeddings)))
+
     success_count = 0
-    
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        # Submit all embedding tasks
-        futures = {
-            executor.submit(embed_single, entry_id, text): entry_id 
-            for entry_id, text in entry_texts
-        }
-        
-        # Collect results as they complete
-        for future in as_completed(futures):
-            entry_id = futures[future]
-            try:
-                result_id, embedding = future.result()
-                if embedding:
-                    if len(embedding) != EMBEDDING_DIMENSIONS:
-                        logger.error(
-                            f"Entry {result_id}: embedding dimension mismatch "
-                            f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
-                        )
-                        entry = entry_map[result_id]
-                        entry.status = 'error'
-                    else:
-                        entry = entry_map[result_id]
-                        entry.embedding = embedding
-                        success_count += 1
-                        logger.info(f"Embedded entry {result_id}")
-                else:
-                    logger.error(f"Failed to embed entry {result_id}")
-            except Exception as e:
-                logger.error(f"Exception embedding entry {entry_id}: {e}")
-    
-    # Commit all successful embeddings at once
+    for (entry_id, _), embedding in zip(entry_texts, embeddings):
+        entry = entry_map[entry_id]
+        if embedding is None:
+            logger.error(f"Failed to embed entry {entry_id}")
+            continue
+        if len(embedding) != EMBEDDING_DIMENSIONS:
+            logger.error(
+                f"Entry {entry_id}: embedding dimension mismatch "
+                f"(expected {EMBEDDING_DIMENSIONS}, got {len(embedding)}); skipping"
+            )
+            entry.status = 'error'
+            continue
+        entry.embedding = embedding
+        success_count += 1
+        logger.info(f"Embedded entry {entry_id}")
+
     db.commit()
     return success_count
 
