@@ -17,7 +17,7 @@
     "expo-image-picker": "~16.0.6",
     "expo-linking": "~7.0.5",
     "expo-router": "~4.0.21",
-    "expo-sharing": "~12.0.6",
+    "expo-sharing": "~12.0.1",
     "expo-status-bar": "~2.0.1",
     "expo-web-browser": "~14.0.2",
     "react": "18.3.1",
