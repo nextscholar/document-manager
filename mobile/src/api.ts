@@ -35,7 +35,7 @@ async function apiFetch(path: string, options: RequestInit = {}): Promise<Respon
     ...options,
     headers: {
       ...auth,
-      ...(options.headers as Record<string, string> | undefined ?? {}),
+      ...((options.headers as Record<string, string> | undefined) ?? {}),
     },
   });
 }
