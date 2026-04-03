@@ -69,23 +69,6 @@
       "output": "static",
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "expo-web-browser",
-      [
-        "expo-image-picker",
-        {
-          "photosPermission": "Allow Document Manager to access your photos.",
-          "cameraPermission": "Allow Document Manager to use the camera."
-        }
-      ],
-      [
-        "expo-document-picker",
-        {
-          "iCloudContainerEnvironment": "Production"
-        }
-      ]
-    ],
     "experiments": {
       "typedRoutes": true
     },
