@@ -1,0 +1,54 @@
+name: Build Frontend
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Vite App
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        env:
+          VITE_STACK_PROJECT_ID: ${{ secrets.VITE_STACK_PROJECT_ID }}
+          VITE_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.VITE_STACK_PUBLISHABLE_CLIENT_KEY }}
+          # Custom Stack Auth API URL (e.g. https://authapi.nextscholar.site).
+          # Add VITE_STACK_API_URL to GitHub secrets; omit to use the default
+          # https://api.stack-auth.com
+          VITE_STACK_API_URL: ${{ secrets.VITE_STACK_API_URL }}
+        run: npm run build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7

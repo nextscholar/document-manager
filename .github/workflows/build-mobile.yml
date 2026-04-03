@@ -1,0 +1,115 @@
+name: Build Mobile App
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: 'EAS build profile'
+        required: true
+        default: 'preview'
+        type: choice
+        options:
+          - preview
+          - production
+
+jobs:
+  build-android:
+    name: Build Android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Push EAS secrets from GitHub secrets
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
+          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
+        run: |
+          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PROJECT_ID \
+            --value "$EXPO_PUBLIC_STACK_PROJECT_ID" --force --non-interactive
+          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY \
+            --value "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY" --force --non-interactive
+
+      - name: Build Android
+        working-directory: mobile
+        env:
+          # Custom backend and auth URLs (also set in eas.json; listed here for visibility)
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://smartsearchapi.nextscholar.site' }}
+          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL || 'https://authapi.nextscholar.site' }}
+        run: eas build --platform android --profile ${{ inputs.profile || 'preview' }} --non-interactive
+
+  build-ios:
+    name: Build iOS
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: npm ci
+
+      - name: Push EAS secrets from GitHub secrets
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
+          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
+        run: |
+          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PROJECT_ID \
+            --value "$EXPO_PUBLIC_STACK_PROJECT_ID" --force --non-interactive
+          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY \
+            --value "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY" --force --non-interactive
+
+      - name: Build iOS
+        working-directory: mobile
+        env:
+          # Custom backend and auth URLs (also set in eas.json; listed here for visibility)
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://smartsearchapi.nextscholar.site' }}
+          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL || 'https://authapi.nextscholar.site' }}
+        run: eas build --platform ios --profile ${{ inputs.profile || 'preview' }} --non-interactive
+
