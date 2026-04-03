@@ -9,6 +9,10 @@
  *   POST {STACK_AUTH_URL}/api/v1/auth/password/sign-in
  *   POST {STACK_AUTH_URL}/api/v1/auth/password/sign-up
  *
+ * OAuth (Google) uses the Stack Auth OAuth authorize flow with PKCE:
+ *   GET  {STACK_AUTH_URL}/api/v1/auth/oauth/authorize/{provider_id}
+ *   POST {STACK_AUTH_URL}/api/v1/auth/oauth/token
+ *
  * The resulting access_token is forwarded as the `x-stack-access-token`
  * header on every API request to the backend (same header the web app uses).
  */
@@ -24,7 +28,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
-import { AuthTokens } from './types';
 
 // ---------------------------------------------------------------------------
 // Config (from Expo public env vars)
@@ -70,6 +73,41 @@ interface AuthContextValue extends AuthState {
 }
 
 // ---------------------------------------------------------------------------
+// PKCE helpers (Web Crypto API – available in React Native 0.71+ / Hermes)
+// ---------------------------------------------------------------------------
+
+/** Base64url-encode an ArrayBuffer (no padding). */
+function base64UrlEncode(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/** Generate a PKCE code_verifier (32 random bytes, base64url-encoded → ~43 chars). */
+function generateCodeVerifier(): string {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+}
+
+/** Derive the PKCE code_challenge (SHA-256 of verifier, base64url-encoded). */
+async function generateCodeChallenge(verifier: string): Promise<string> {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return base64UrlEncode(digest);
+}
+
+/** Generate a random OAuth state string. */
+function generateState(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -84,29 +122,50 @@ function stackAuthHeaders(): Record<string, string> {
 }
 
 /**
- * Exchange access/refresh tokens from a raw Stack Auth API response and
- * persist them to AsyncStorage.  Also persists user id + email.
+ * Persist access/refresh tokens to AsyncStorage.
  */
 async function persistTokens(
   data: Record<string, unknown>,
-): Promise<{ user: AuthUser; accessToken: string }> {
+): Promise<{ accessToken: string }> {
   const accessToken = data['access_token'] as string;
-  const refreshToken = data['refresh_token'] as string;
-  const userId =
-    (data['user_id'] as string | undefined) ??
-    ((data['user'] as Record<string, unknown> | undefined)?.['id'] as string | undefined) ??
-    '';
-  const userEmail =
-    ((data['user'] as Record<string, unknown> | undefined)?.['primary_email'] as string | undefined) ?? '';
+  const refreshToken = (data['refresh_token'] as string | undefined) ?? '';
 
   await AsyncStorage.multiSet([
     [STORAGE_KEYS.ACCESS_TOKEN, accessToken],
-    [STORAGE_KEYS.REFRESH_TOKEN, refreshToken ?? ''],
-    [STORAGE_KEYS.USER_ID, userId],
-    [STORAGE_KEYS.USER_EMAIL, userEmail],
+    [STORAGE_KEYS.REFRESH_TOKEN, refreshToken],
   ]);
 
-  return { user: { id: userId, email: userEmail }, accessToken };
+  return { accessToken };
+}
+
+/**
+ * Fetch the authenticated user's profile from Stack Auth and persist it.
+ * Password sign-in/sign-up responses only include `user_id` (no email).
+ * OAuth token-exchange responses include neither user_id nor email.
+ * Fetching /users/me with the access token gives us both fields reliably.
+ */
+async function fetchAndPersistUser(accessToken: string): Promise<AuthUser> {
+  try {
+    const res = await fetch(`${STACK_AUTH_URL}/api/v1/users/me`, {
+      headers: {
+        ...stackAuthHeaders(),
+        'x-stack-access-token': accessToken,
+      },
+    });
+    if (res.ok) {
+      const data = await res.json() as Record<string, unknown>;
+      const id = (data['id'] as string | undefined) ?? '';
+      const email = (data['primary_email'] as string | undefined) ?? '';
+      await AsyncStorage.multiSet([
+        [STORAGE_KEYS.USER_ID, id],
+        [STORAGE_KEYS.USER_EMAIL, email],
+      ]);
+      return { id, email };
+    }
+  } catch {
+    // Fall through to empty user on network errors
+  }
+  return { id: '', email: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -166,7 +225,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await res.json();
-    const { user, accessToken } = await persistTokens(data);
+    const { accessToken } = await persistTokens(data);
+    const user = await fetchAndPersistUser(accessToken);
     setState({ user, accessToken, loading: false });
   }, []);
 
@@ -174,11 +234,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Sign up (email + password)
   // -------------------------------------------------------------------------
   const signUp = useCallback(
-    async (email: string, password: string, displayName?: string) => {
+    async (email: string, password: string, _displayName?: string) => {
+      // The Stack Auth password sign-up endpoint only accepts `email` and
+      // `password`. The `display_name` field is not supported here and causes
+      // a 400 error when included.
       const res = await fetch(`${STACK_AUTH_URL}/api/v1/auth/password/sign-up`, {
         method: 'POST',
         headers: stackAuthHeaders(),
-        body: JSON.stringify({ email, password, display_name: displayName ?? email }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (!res.ok) {
@@ -189,7 +252,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const data = await res.json();
-      const { user, accessToken } = await persistTokens(data);
+      const { accessToken } = await persistTokens(data);
+      const user = await fetchAndPersistUser(accessToken);
       setState({ user, accessToken, loading: false });
     },
     [],
@@ -197,15 +261,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // -------------------------------------------------------------------------
   // OAuth sign-in via expo-web-browser (opens the Stack Auth hosted page)
+  //
+  // The correct Stack Auth OAuth authorize URL uses the provider as a PATH
+  // parameter: /api/v1/auth/oauth/authorize/{provider_id}
+  // Required query params mirror the OAuth 2.0 + PKCE spec:
+  //   client_id, client_secret, redirect_uri, scope, state, grant_type,
+  //   code_challenge, code_challenge_method, response_type, type
   // -------------------------------------------------------------------------
   const signInWithOAuth = useCallback(async () => {
     const redirectUri = Linking.createURL('auth/callback');
-    const authUrl =
-      `${STACK_AUTH_URL}/api/v1/auth/oauth/authorize` +
-      `?provider_id=google` +
-      `&type=authenticate` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&project_id=${encodeURIComponent(STACK_PROJECT_ID)}`;
+
+    // PKCE – required for mobile OAuth flows
+    const codeVerifier = generateCodeVerifier();
+    const codeChallenge = await generateCodeChallenge(codeVerifier);
+    const state = generateState();
+
+    const params = new URLSearchParams({
+      client_id: STACK_PROJECT_ID,
+      client_secret: STACK_PUBLISHABLE_CLIENT_KEY,
+      redirect_uri: redirectUri,
+      scope: 'legacy',
+      state,
+      grant_type: 'authorization_code',
+      code_challenge: codeChallenge,
+      code_challenge_method: 'S256',
+      response_type: 'code',
+      type: 'authenticate',
+    });
+
+    // provider_id is a PATH parameter, not a query parameter
+    const authUrl = `${STACK_AUTH_URL}/api/v1/auth/oauth/authorize/google?${params.toString()}`;
 
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       WebBrowser.warmUpAsync();
@@ -219,16 +304,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (result.type !== 'success') return;
 
-    // Extract the token from the callback URL
+    // Extract the authorization code from the callback URL
     const parsed = Linking.parse(result.url);
     const code = (parsed.queryParams as Record<string, string> | undefined)?.['code'];
     if (!code) throw new Error('OAuth callback did not include a code');
 
-    // Exchange code for tokens
+    // Exchange authorization code for tokens (OAuth 2.0 spec)
     const tokenRes = await fetch(`${STACK_AUTH_URL}/api/v1/auth/oauth/token`, {
       method: 'POST',
       headers: stackAuthHeaders(),
-      body: JSON.stringify({ code, redirect_uri: redirectUri }),
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
+        client_id: STACK_PROJECT_ID,
+        client_secret: STACK_PUBLISHABLE_CLIENT_KEY,
+      }),
     });
 
     if (!tokenRes.ok) {
@@ -239,7 +331,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const data = await tokenRes.json();
-    const { user, accessToken } = await persistTokens(data);
+    const { accessToken } = await persistTokens(data);
+    // OAuth token exchange response does not include user info – fetch it
+    const user = await fetchAndPersistUser(accessToken);
     setState({ user, accessToken, loading: false });
   }, []);
 
