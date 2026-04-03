@@ -26,7 +26,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-archive_brain}
     volumes:
-      - postgres_data1:/var/lib/postgresql/data
+      - archive_brain:/var/lib/postgresql/data
     networks:
       - archive_net
     healthcheck:
@@ -162,7 +162,7 @@ services:
       - archive_net
       - dokploy-network
 volumes:
-  postgres_data1:
+  archive_brain:
   worker_shared:
   ollama_models:
 
