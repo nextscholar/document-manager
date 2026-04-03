@@ -27,7 +27,7 @@ jobs:
     name: Build Android
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -49,30 +49,39 @@ jobs:
         working-directory: mobile
         run: npm ci
 
-      - name: Push EAS secrets from GitHub secrets
-        working-directory: mobile
-        env:
-          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
-          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
-        run: |
-          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PROJECT_ID \
-            --value "$EXPO_PUBLIC_STACK_PROJECT_ID" --force --non-interactive
-          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY \
-            --value "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY" --force --non-interactive
-
       - name: Build Android
         working-directory: mobile
         env:
-          # Custom backend and auth URLs (also set in eas.json; listed here for visibility)
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://smartsearchapi.nextscholar.site' }}
-          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL || 'https://authapi.nextscholar.site' }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL }}
+          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
+          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
         run: eas build --platform android --profile ${{ inputs.profile || 'preview' }} --non-interactive
+
+      - name: Download Android artifact from EAS
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: mobile
+        run: |
+          BUILD_URL=$(eas build:list --platform android --limit 10 --json 2>/dev/null | \
+            jq -r --arg sha "${{ github.sha }}" '.[] | select(.gitCommitHash == $sha) | .artifacts.buildUrl' | head -1)
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "Error: Could not find build artifact URL for commit ${{ github.sha }}"
+            exit 1
+          fi
+          curl -L -o app-release.apk "$BUILD_URL"
+
+      - name: Upload Android APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mobile/app-release.apk
+          tag_name: ${{ github.ref_name }}
 
   build-ios:
     name: Build iOS
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -94,22 +103,31 @@ jobs:
         working-directory: mobile
         run: npm ci
 
-      - name: Push EAS secrets from GitHub secrets
-        working-directory: mobile
-        env:
-          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
-          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
-        run: |
-          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PROJECT_ID \
-            --value "$EXPO_PUBLIC_STACK_PROJECT_ID" --force --non-interactive
-          eas secret:create --scope project --name EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY \
-            --value "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY" --force --non-interactive
-
       - name: Build iOS
         working-directory: mobile
         env:
-          # Custom backend and auth URLs (also set in eas.json; listed here for visibility)
-          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || 'https://smartsearchapi.nextscholar.site' }}
-          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL || 'https://authapi.nextscholar.site' }}
+          EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
+          EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL }}
+          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
+          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
         run: eas build --platform ios --profile ${{ inputs.profile || 'preview' }} --non-interactive
+
+      - name: Download iOS artifact from EAS
+        if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: mobile
+        run: |
+          BUILD_URL=$(eas build:list --platform ios --limit 10 --json 2>/dev/null | \
+            jq -r --arg sha "${{ github.sha }}" '.[] | select(.gitCommitHash == $sha) | .artifacts.buildUrl' | head -1)
+          if [ -z "$BUILD_URL" ] || [ "$BUILD_URL" = "null" ]; then
+            echo "Error: Could not find build artifact URL for commit ${{ github.sha }}"
+            exit 1
+          fi
+          curl -L -o app-release.ipa "$BUILD_URL"
+
+      - name: Upload iOS IPA to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: mobile/app-release.ipa
+          tag_name: ${{ github.ref_name }}
 
