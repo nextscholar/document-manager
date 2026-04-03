@@ -7,7 +7,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@archive-brain-db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
@@ -29,6 +29,8 @@ services:
       - archive_brain:/var/lib/postgresql/data
     networks:
       - archive_net
+      aliases:
+          - archive-brain-db
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-archive_brain}"]
       interval: 10s
@@ -83,7 +85,7 @@ services:
       - ./config:/app/config
       - ./archive_root:/data/archive/inbox 
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@archive-brain-db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
@@ -118,7 +120,7 @@ services:
       - worker_shared:/app/shared
       - ./archive_root:/data/archive/inbox 
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-archive_brain}
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@archive-brain-db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
       DB_PORT: 5432
       DB_USER: ${DB_USER:-postgres}
