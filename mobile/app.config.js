@@ -5,6 +5,7 @@ const config = appJson.expo;
 export default {
   expo: {
     ...config,
+    ...(process.env.EXPO_SLUG ? { slug: process.env.EXPO_SLUG } : {}),
     extra: {
       ...config.extra,
       eas: {
