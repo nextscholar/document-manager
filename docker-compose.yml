@@ -28,7 +28,7 @@ services:
     volumes:
       - archive_brain:/var/lib/postgresql/data
     networks:
-      - archive_net
+      archive_net:
         aliases:
           - archive-brain-db
     healthcheck:
