@@ -52,6 +52,7 @@ jobs:
       - name: Build Android
         working-directory: mobile
         env:
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
           EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL }}
           EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
@@ -106,6 +107,7 @@ jobs:
       - name: Build iOS
         working-directory: mobile
         env:
+          EAS_PROJECT_ID: ${{ secrets.EAS_PROJECT_ID }}
           EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL }}
           EXPO_PUBLIC_STACK_AUTH_URL: ${{ secrets.EXPO_PUBLIC_STACK_AUTH_URL }}
           EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
