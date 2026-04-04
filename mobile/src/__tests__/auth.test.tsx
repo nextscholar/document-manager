@@ -202,6 +202,10 @@ describe('auth module', () => {
     });
 
     it('sends only email and password (no display_name)', async () => {
+      // The Stack Auth sign-up API only accepts email + password.
+      // The optional displayName parameter is accepted by signUp for API
+      // compatibility but intentionally NOT forwarded to the API (sending it
+      // causes a 400 error).  This test verifies it is dropped.
       global.fetch = mockFetchSequence(
         { status: 200, body: SIGN_IN_RESPONSE },
         { status: 200, body: ME_RESPONSE },
