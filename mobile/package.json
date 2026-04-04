@@ -7,13 +7,29 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "test": "jest --no-coverage",
+    "test:coverage": "jest",
     "postinstall": "patch-package"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testMatch": [
+      "**/__tests__/**/*.{ts,tsx}",
+      "**/*.{test,spec}.{ts,tsx}"
+    ],
+    "transformIgnorePatterns": [
+      "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@unimodules/.*|unimodules|sentry-expo|native-base|react-native-svg|expo-crypto)"
+    ],
+    "moduleNameMapper": {
+      "^expo-crypto$": "<rootDir>/__mocks__/expo-crypto.ts"
+    }
   },
   "dependencies": {
     "@expo/vector-icons": "^14.0.4",
     "@react-native-async-storage/async-storage": "~2.1.0",
     "expo": "~52.0.46",
     "expo-asset": "~10.0.10",
+    "expo-crypto": "~14.0.2",
     "expo-document-picker": "~13.0.3",
     "expo-file-system": "~18.0.11",
     "expo-image-picker": "~16.0.6",
@@ -24,15 +40,20 @@
     "expo-web-browser": "~14.0.2",
     "react": "18.3.1",
     "react-native": "0.76.9",
+    "react-native-gesture-handler": "~2.20.2",
     "react-native-reanimated": "~3.16.7",
     "react-native-safe-area-context": "4.12.0",
-    "react-native-screens": "~4.4.0",
-    "react-native-gesture-handler": "~2.20.2"
+    "react-native-screens": "~4.4.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@testing-library/react-native": "^13.3.3",
+    "@types/jest": "^30.0.0",
     "@types/react": "~18.3.12",
+    "jest": "^29.7.0",
+    "jest-expo": "^52.0.6",
     "patch-package": "^8.0.0",
+    "react-test-renderer": "^18.3.1",
     "typescript": "^5.3.3"
   },
   "overrides": {

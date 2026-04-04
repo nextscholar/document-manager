@@ -25,6 +25,12 @@ import React, {
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getRandomBytes,
+  digestStringAsync,
+  CryptoDigestAlgorithm,
+  CryptoEncoding,
+} from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -73,38 +79,43 @@ interface AuthContextValue extends AuthState {
 }
 
 // ---------------------------------------------------------------------------
-// PKCE helpers (Web Crypto API – available in React Native 0.71+ / Hermes)
+// PKCE helpers (uses expo-crypto for React Native compatibility)
 // ---------------------------------------------------------------------------
 
-/** Base64url-encode an ArrayBuffer (no padding). */
-function base64UrlEncode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+/** Convert a standard base64 string to base64url format (no padding). */
+function base64ToBase64Url(b64: string): string {
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/** Base64url-encode a Uint8Array (no padding). */
+function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return base64ToBase64Url(btoa(binary));
 }
 
 /** Generate a PKCE code_verifier (32 random bytes, base64url-encoded → ~43 chars). */
 function generateCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+  const bytes = getRandomBytes(32);
+  return base64UrlEncode(bytes);
 }
 
 /** Derive the PKCE code_challenge (SHA-256 of verifier, base64url-encoded). */
 async function generateCodeChallenge(verifier: string): Promise<string> {
-  const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return base64UrlEncode(digest);
+  const base64 = await digestStringAsync(
+    CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: CryptoEncoding.BASE64 },
+  );
+  return base64ToBase64Url(base64);
 }
 
 /** Generate a random OAuth state string. */
 function generateState(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+  const bytes = getRandomBytes(16);
+  return base64UrlEncode(bytes);
 }
 
 // ---------------------------------------------------------------------------
@@ -218,9 +229,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
+      const body = await res.json().catch(() => ({})) as Record<string, string>;
       throw new Error(
-        (body as Record<string, string>)['message'] ?? `Sign-in failed (${res.status})`,
+        body['error'] ?? body['message'] ?? `Sign-in failed (${res.status})`,
       );
     }
 
@@ -245,9 +256,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
+        const body = await res.json().catch(() => ({})) as Record<string, string>;
         throw new Error(
-          (body as Record<string, string>)['message'] ?? `Sign-up failed (${res.status})`,
+          body['error'] ?? body['message'] ?? `Sign-up failed (${res.status})`,
         );
       }
 
@@ -324,9 +335,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     if (!tokenRes.ok) {
-      const body = await tokenRes.json().catch(() => ({}));
+      const body = await tokenRes.json().catch(() => ({})) as Record<string, string>;
       throw new Error(
-        (body as Record<string, string>)['message'] ?? `OAuth token exchange failed (${tokenRes.status})`,
+        body['error'] ?? body['message'] ?? `OAuth token exchange failed (${tokenRes.status})`,
       );
     }
 
