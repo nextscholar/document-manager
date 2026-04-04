@@ -25,6 +25,7 @@ import React, {
   ReactNode,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ExpoCrypto from 'expo-crypto';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -73,12 +74,11 @@ interface AuthContextValue extends AuthState {
 }
 
 // ---------------------------------------------------------------------------
-// PKCE helpers (Web Crypto API – available in React Native 0.71+ / Hermes)
+// PKCE helpers (uses expo-crypto for React Native compatibility)
 // ---------------------------------------------------------------------------
 
-/** Base64url-encode an ArrayBuffer (no padding). */
-function base64UrlEncode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
+/** Base64url-encode a Uint8Array (no padding). */
+function base64UrlEncode(bytes: Uint8Array): string {
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
@@ -88,23 +88,24 @@ function base64UrlEncode(buffer: ArrayBuffer): string {
 
 /** Generate a PKCE code_verifier (32 random bytes, base64url-encoded → ~43 chars). */
 function generateCodeVerifier(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+  const bytes = ExpoCrypto.getRandomBytes(32);
+  return base64UrlEncode(bytes);
 }
 
 /** Derive the PKCE code_challenge (SHA-256 of verifier, base64url-encoded). */
 async function generateCodeChallenge(verifier: string): Promise<string> {
-  const data = new TextEncoder().encode(verifier);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return base64UrlEncode(digest);
+  const base64 = await ExpoCrypto.digestStringAsync(
+    ExpoCrypto.CryptoDigestAlgorithm.SHA256,
+    verifier,
+    { encoding: ExpoCrypto.CryptoEncoding.BASE64 },
+  );
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 /** Generate a random OAuth state string. */
 function generateState(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return base64UrlEncode(bytes.buffer as ArrayBuffer);
+  const bytes = ExpoCrypto.getRandomBytes(16);
+  return base64UrlEncode(bytes);
 }
 
 // ---------------------------------------------------------------------------
