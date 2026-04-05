@@ -8,7 +8,9 @@
       "distribution": "internal",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://smartsearchapi.nextscholar.site",
-        "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site"
+        "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site",
+        "EXPO_PUBLIC_STACK_PROJECT_ID": "$EXPO_PUBLIC_STACK_PROJECT_ID",
+        "EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY": "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY"
       },
       "android": {
         "buildType": "apk"
@@ -20,7 +22,9 @@
     "production": {
       "env": {
         "EXPO_PUBLIC_API_URL": "https://smartsearchapi.nextscholar.site",
-        "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site"
+        "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site",
+        "EXPO_PUBLIC_STACK_PROJECT_ID": "$EXPO_PUBLIC_STACK_PROJECT_ID",
+        "EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY": "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY"
       },
       "android": {
         "buildType": "app-bundle"
