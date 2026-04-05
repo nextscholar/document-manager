@@ -23,9 +23,34 @@ on:
           - production
 
 jobs:
+  setup-eas-secrets:
+    name: Setup EAS Secrets
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Push secrets to EAS project
+        working-directory: mobile
+        env:
+          EXPO_PUBLIC_STACK_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_STACK_PROJECT_ID }}
+          EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY: ${{ secrets.EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY }}
+        run: |
+          eas secret:create --name EXPO_PUBLIC_STACK_PROJECT_ID --value "$EXPO_PUBLIC_STACK_PROJECT_ID" --scope project --force
+          eas secret:create --name EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY --value "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY" --scope project --force
+
   build-android:
     name: Build Android
     runs-on: ubuntu-latest
+    needs: setup-eas-secrets
     permissions:
       contents: write
     steps:
@@ -82,6 +107,7 @@ jobs:
   build-ios:
     name: Build iOS
     runs-on: ubuntu-latest
+    needs: setup-eas-secrets
     permissions:
       contents: write
     steps:
