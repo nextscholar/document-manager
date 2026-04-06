@@ -492,7 +492,7 @@ function DocumentView() {
                   <tbody>
                     {rows.map((row, ri) => (
                       <tr key={ri}>
-                        {row.map((cell, ci) => <td key={ci}>{cell}</td>)}
+                        {row.map((cell, ci) => <td key={ci} title={cell}>{cell}</td>)}
                       </tr>
                     ))}
                   </tbody>
