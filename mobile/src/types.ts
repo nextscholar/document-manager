@@ -55,3 +55,52 @@ export interface AuthTokens {
   access_token: string;
   refresh_token: string;
 }
+
+// ---------------------------------------------------------------------------
+// AI Ask (LLM-powered search)
+// ---------------------------------------------------------------------------
+
+export interface AskSource {
+  id: number;
+  file_id: number | null;
+  title: string | null;
+  path: string | null;
+}
+
+export interface AskResponse {
+  answer: string;
+  sources: AskSource[];
+  total_found?: number;
+  has_more?: boolean;
+  timing?: Record<string, number>;
+}
+
+// ---------------------------------------------------------------------------
+// File enrichment metadata
+// ---------------------------------------------------------------------------
+
+export interface FileEnrichment {
+  title: string | null;
+  author: string | null;
+  tags: string[] | null;
+  category: string | null;
+  summary: string | null;
+}
+
+export interface FileProcessing {
+  entry_count: number;
+  status: string | null;
+  doc_status: string | null;
+}
+
+export interface FileSeries {
+  name: string | null;
+  number: number | null;
+  total: number | null;
+}
+
+export interface FileMetadata {
+  enrichment: FileEnrichment;
+  processing: FileProcessing;
+  series?: FileSeries | null;
+}

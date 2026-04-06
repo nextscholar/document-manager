@@ -3,6 +3,10 @@
  *
  * Displays a search bar at the top and shows semantic search results
  * or a list of recent files when the query is empty.
+ *
+ * Two modes are available via a toggle:
+ *  - "Search" – fast semantic/hybrid search returning ranked snippets.
+ *  - "Ask AI"  – LLM-powered question answering with cited sources.
  */
 import { useState, useCallback, useEffect } from 'react';
 import {
@@ -15,12 +19,13 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../../src/auth';
-import { searchFiles, listFiles } from '../../src/api';
-import type { RawFile, SearchResult } from '../../src/types';
+import { searchFiles, listFiles, askAI } from '../../src/api';
+import type { RawFile, SearchResult, AskResponse } from '../../src/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -68,15 +73,86 @@ function FileRow({ id, title, subtitle, meta, onPress }: FileRowProps) {
 }
 
 // ---------------------------------------------------------------------------
+// AI Answer card
+// ---------------------------------------------------------------------------
+
+interface AiAnswerCardProps {
+  result: AskResponse;
+  onSourcePress: (fileId: number) => void;
+}
+
+function AiAnswerCard({ result, onSourcePress }: AiAnswerCardProps) {
+  const [expanded, setExpanded] = useState(false);
+  const answerText = result.answer ?? '';
+  const preview = answerText.slice(0, 400);
+  const needsExpand = answerText.length > 400;
+
+  return (
+    <View style={styles.aiCard}>
+      <View style={styles.aiCardHeader}>
+        <Ionicons name="sparkles" size={16} color="#A78BFA" />
+        <Text style={styles.aiCardTitle}>AI Answer</Text>
+        {result.timing?.total_ms != null && (
+          <Text style={styles.aiCardTiming}>{Math.round(result.timing.total_ms)}ms</Text>
+        )}
+      </View>
+
+      <Text style={styles.aiAnswer} selectable>
+        {expanded || !needsExpand ? answerText : preview + '…'}
+      </Text>
+      {needsExpand && (
+        <TouchableOpacity onPress={() => setExpanded((v) => !v)} style={styles.expandBtn}>
+          <Text style={styles.expandBtnText}>{expanded ? 'Show less' : 'Show more'}</Text>
+        </TouchableOpacity>
+      )}
+
+      {result.sources && result.sources.length > 0 && (
+        <View style={styles.sourcesSection}>
+          <Text style={styles.sourcesLabel}>
+            Sources ({result.sources.length}{result.total_found && result.total_found > result.sources.length ? ` of ${result.total_found}` : ''})
+          </Text>
+          {result.sources.map((src, i) => (
+            <TouchableOpacity
+              key={src.id != null ? String(src.id) : `src-${i}`}
+              style={styles.sourceRow}
+              onPress={() => src.file_id != null && onSourcePress(src.file_id)}
+              disabled={src.file_id == null}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="document-outline" size={14} color="#4A9EFF" style={{ marginRight: 6 }} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sourceTitle} numberOfLines={1}>
+                  {src.title ?? src.path?.split('/').pop() ?? 'Untitled'}
+                </Text>
+                {src.path ? (
+                  <Text style={styles.sourcePath} numberOfLines={1}>{src.path}</Text>
+                ) : null}
+              </View>
+              {src.file_id != null && (
+                <Ionicons name="chevron-forward" size={14} color="#444" />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main screen
 // ---------------------------------------------------------------------------
+
+type SearchMode = 'search' | 'ask';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { user, signOut } = useAuth();
 
   const [query, setQuery] = useState('');
+  const [mode, setMode] = useState<SearchMode>('search');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [aiResult, setAiResult] = useState<AskResponse | null>(null);
   const [recent, setRecent] = useState<RawFile[]>([]);
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -94,28 +170,42 @@ export default function HomeScreen() {
     loadRecent();
   }, [loadRecent]);
 
-  // Trigger search when query changes (debounced by press)
   const handleSearch = useCallback(async () => {
     if (!query.trim()) {
       setResults([]);
+      setAiResult(null);
       return;
     }
     setSearching(true);
+    setResults([]);
+    setAiResult(null);
     try {
-      const data = await searchFiles(query.trim());
-      setResults(data.results);
+      if (mode === 'ask') {
+        const data = await askAI(query.trim());
+        setAiResult(data);
+      } else {
+        const data = await searchFiles(query.trim());
+        setResults(data.results);
+      }
     } catch (err: unknown) {
       Alert.alert('Search failed', (err as Error).message);
     } finally {
       setSearching(false);
     }
-  }, [query]);
+  }, [query, mode]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadRecent();
     setRefreshing(false);
   }, [loadRecent]);
+
+  // Clear results when switching modes
+  const handleModeChange = useCallback((newMode: SearchMode) => {
+    setMode(newMode);
+    setResults([]);
+    setAiResult(null);
+  }, []);
 
   const isSearchMode = query.trim().length > 0;
 
@@ -148,6 +238,7 @@ export default function HomeScreen() {
   }
 
   function ListHeader() {
+    if (mode === 'ask') return null; // AI mode shows answer card, not a count header
     if (isSearchMode) {
       return (
         <Text style={styles.sectionTitle}>
@@ -160,7 +251,7 @@ export default function HomeScreen() {
 
   function ListEmpty() {
     if (searching) return null;
-    if (isSearchMode) {
+    if (isSearchMode && mode === 'search') {
       return (
         <View style={styles.empty}>
           <Ionicons name="search-outline" size={48} color="#333" />
@@ -169,13 +260,16 @@ export default function HomeScreen() {
         </View>
       );
     }
-    return (
-      <View style={styles.empty}>
-        <Ionicons name="cloud-upload-outline" size={48} color="#333" />
-        <Text style={styles.emptyText}>No documents yet</Text>
-        <Text style={styles.emptyHint}>Upload files from the Upload tab</Text>
-      </View>
-    );
+    if (!isSearchMode) {
+      return (
+        <View style={styles.empty}>
+          <Ionicons name="cloud-upload-outline" size={48} color="#333" />
+          <Text style={styles.emptyText}>No documents yet</Text>
+          <Text style={styles.emptyHint}>Upload files from the Upload tab</Text>
+        </View>
+      );
+    }
+    return null;
   }
 
   return (
@@ -191,52 +285,109 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Mode Toggle */}
+      <View style={styles.modeToggle}>
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === 'search' && styles.modeBtnActive]}
+          onPress={() => handleModeChange('search')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="search-outline" size={14} color={mode === 'search' ? '#E8E8E8' : '#666'} style={{ marginRight: 5 }} />
+          <Text style={[styles.modeBtnText, mode === 'search' && styles.modeBtnTextActive]}>Search</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modeBtn, mode === 'ask' && styles.modeBtnActive, mode === 'ask' && styles.modeBtnAsk]}
+          onPress={() => handleModeChange('ask')}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="sparkles-outline" size={14} color={mode === 'ask' ? '#E8E8E8' : '#666'} style={{ marginRight: 5 }} />
+          <Text style={[styles.modeBtnText, mode === 'ask' && styles.modeBtnTextActive]}>Ask AI</Text>
+        </TouchableOpacity>
+      </View>
+
       {/* Search bar */}
-      <View style={styles.searchBar}>
-        <Ionicons name="search-outline" size={18} color="#555" style={styles.searchIcon} />
+      <View style={[styles.searchBar, mode === 'ask' && styles.searchBarAsk]}>
+        <Ionicons
+          name={mode === 'ask' ? 'sparkles-outline' : 'search-outline'}
+          size={18}
+          color={mode === 'ask' ? '#A78BFA' : '#555'}
+          style={styles.searchIcon}
+        />
         <TextInput
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="Search documents…"
+          placeholder={mode === 'ask' ? 'Ask your archive a question…' : 'Search documents…'}
           placeholderTextColor="#555"
           returnKeyType="search"
           onSubmitEditing={handleSearch}
           clearButtonMode="while-editing"
+          multiline={mode === 'ask'}
+          numberOfLines={mode === 'ask' ? 3 : 1}
         />
-        {searching && (
-          <ActivityIndicator size="small" color="#4A9EFF" style={styles.searchSpinner} />
+        {searching ? (
+          <ActivityIndicator size="small" color={mode === 'ask' ? '#A78BFA' : '#4A9EFF'} style={styles.searchSpinner} />
+        ) : (
+          <TouchableOpacity onPress={handleSearch} style={styles.searchSubmit} disabled={!query.trim()}>
+            <Ionicons name="arrow-forward-circle" size={26} color={query.trim() ? (mode === 'ask' ? '#A78BFA' : '#4A9EFF') : '#333'} />
+          </TouchableOpacity>
         )}
       </View>
 
-      {/* List */}
-      {isSearchMode ? (
-        <FlatList<SearchResult>
-          data={results}
-          keyExtractor={(item) => String(item.entry_id)}
-          renderItem={renderSearchResult}
-          ListHeaderComponent={<ListHeader />}
-          ListEmptyComponent={<ListEmpty />}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      ) : (
-        <FlatList<RawFile>
-          data={recent}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={renderRecentFile}
-          ListHeaderComponent={<ListHeader />}
-          ListEmptyComponent={<ListEmpty />}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#4A9EFF"
+      {/* Mode hint */}
+      {mode === 'ask' && !isSearchMode && (
+        <Text style={styles.modeHint}>
+          Ask a natural-language question — the AI will find relevant documents and compose an answer.
+        </Text>
+      )}
+
+      {/* AI Answer (Ask mode) */}
+      {mode === 'ask' && isSearchMode && (
+        <ScrollView style={styles.aiScrollArea} contentContainerStyle={{ paddingBottom: 40 }}>
+          {searching ? (
+            <View style={styles.aiThinking}>
+              <ActivityIndicator color="#A78BFA" />
+              <Text style={styles.aiThinkingText}>Thinking…</Text>
+            </View>
+          ) : aiResult ? (
+            <AiAnswerCard
+              result={aiResult}
+              onSourcePress={(fileId) => router.push(`/document/${fileId}`)}
             />
-          }
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+          ) : null}
+        </ScrollView>
+      )}
+
+      {/* Search results / Recent list (Search mode) */}
+      {mode === 'search' && (
+        isSearchMode ? (
+          <FlatList<SearchResult>
+            data={results}
+            keyExtractor={(item) => String(item.entry_id)}
+            renderItem={renderSearchResult}
+            ListHeaderComponent={<ListHeader />}
+            ListEmptyComponent={<ListEmpty />}
+            contentContainerStyle={styles.list}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        ) : (
+          <FlatList<RawFile>
+            data={recent}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={renderRecentFile}
+            ListHeaderComponent={<ListHeader />}
+            ListEmptyComponent={<ListEmpty />}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#4A9EFF"
+              />
+            }
+            contentContainerStyle={styles.list}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        )
       )}
     </View>
   );
@@ -261,20 +412,60 @@ const styles = StyleSheet.create({
   greetingHint: { fontSize: 13, color: '#666', marginTop: 2 },
   signOutBtn: { padding: 8 },
 
+  modeToggle: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    backgroundColor: '#1A1A1A',
+    borderRadius: 10,
+    padding: 3,
+    borderWidth: 1,
+    borderColor: '#2A2A2A',
+  },
+  modeBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  modeBtnActive: {
+    backgroundColor: '#2A2A2A',
+  },
+  modeBtnAsk: {
+    backgroundColor: '#2D1F4E',
+  },
+  modeBtnText: { fontSize: 13, fontWeight: '600', color: '#666' },
+  modeBtnTextActive: { color: '#E8E8E8' },
+
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginHorizontal: 20,
-    marginBottom: 20,
+    marginBottom: 12,
     paddingHorizontal: 12,
+    paddingVertical: 4,
     borderWidth: 1,
     borderColor: '#2A2A2A',
   },
-  searchIcon: { marginRight: 8 },
-  searchInput: { flex: 1, height: 44, color: '#E8E8E8', fontSize: 15 },
-  searchSpinner: { marginLeft: 8 },
+  searchBarAsk: {
+    alignItems: 'flex-start',
+  },
+  searchIcon: { marginRight: 8, marginTop: 13 },
+  searchInput: { flex: 1, minHeight: 44, color: '#E8E8E8', fontSize: 15, paddingTop: 10, paddingBottom: 10 },
+  searchSpinner: { marginLeft: 8, marginTop: 10 },
+  searchSubmit: { padding: 6, marginTop: 4 },
+
+  modeHint: {
+    fontSize: 12,
+    color: '#555',
+    marginHorizontal: 20,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
 
   sectionTitle: {
     fontSize: 14,
@@ -314,4 +505,36 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: 80, paddingHorizontal: 40 },
   emptyText: { fontSize: 16, fontWeight: '600', color: '#555', marginTop: 16 },
   emptyHint: { fontSize: 13, color: '#444', marginTop: 6, textAlign: 'center' },
+
+  // AI mode styles
+  aiScrollArea: { flex: 1 },
+  aiThinking: { flexDirection: 'row', alignItems: 'center', padding: 20, gap: 10 },
+  aiThinkingText: { color: '#A78BFA', fontSize: 14 },
+
+  aiCard: {
+    margin: 16,
+    backgroundColor: '#12101E',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2D1F4E',
+    padding: 16,
+  },
+  aiCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 6 },
+  aiCardTitle: { fontSize: 14, fontWeight: '700', color: '#A78BFA', flex: 1 },
+  aiCardTiming: { fontSize: 11, color: '#555' },
+  aiAnswer: { fontSize: 14, color: '#CCC', lineHeight: 22 },
+  expandBtn: { marginTop: 8, alignSelf: 'flex-start' },
+  expandBtnText: { fontSize: 13, color: '#A78BFA', fontWeight: '600' },
+
+  sourcesSection: { marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: '#2D1F4E' },
+  sourcesLabel: { fontSize: 12, fontWeight: '600', color: '#666', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 },
+  sourceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#1E1E1E',
+  },
+  sourceTitle: { fontSize: 13, color: '#CCC', fontWeight: '500' },
+  sourcePath: { fontSize: 11, color: '#555', marginTop: 2 },
 });

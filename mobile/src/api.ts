@@ -9,8 +9,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   FilesListResponse,
   FileDetail,
+  FileMetadata,
   UploadResponse,
   SearchResponse,
+  AskResponse,
 } from './types';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -143,4 +145,47 @@ export async function getFileText(fileId: number): Promise<string> {
   await checkOk(res);
   const data = await res.json();
   return (data?.text as string | undefined) ?? '';
+}
+
+// ---------------------------------------------------------------------------
+// File metadata (enrichment + processing status)
+// ---------------------------------------------------------------------------
+
+/** Retrieve AI-enrichment metadata for a file. */
+export async function getFileMetadata(fileId: number): Promise<FileMetadata> {
+  const res = await apiFetch(`/files/${fileId}/metadata`);
+  await checkOk(res);
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// AI Ask
+// ---------------------------------------------------------------------------
+
+/**
+ * Ask an LLM-powered question against the archive.
+ *
+ * @param query       Natural-language question or search phrase.
+ * @param k           Number of source chunks to retrieve (default 10).
+ * @param model       Optional model identifier (e.g. "ollama/llama3").
+ * @param searchMode  One of "hybrid" | "vector" | "keyword" | "two_stage".
+ */
+export async function askAI(
+  query: string,
+  k = 10,
+  model?: string,
+  searchMode: 'hybrid' | 'vector' | 'keyword' | 'two_stage' = 'hybrid',
+): Promise<AskResponse> {
+  const res = await apiFetch('/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      k,
+      model: model || undefined,
+      search_mode: searchMode,
+    }),
+  });
+  await checkOk(res);
+  return res.json();
 }
