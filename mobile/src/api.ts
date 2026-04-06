@@ -45,7 +45,16 @@ async function checkOk(res: Response): Promise<void> {
     let detail = `HTTP ${res.status}`;
     try {
       const body = await res.json();
-      if (body?.detail) detail = body.detail;
+      if (body?.detail) {
+        // FastAPI validation errors return detail as an array of objects.
+        if (Array.isArray(body.detail)) {
+          detail = body.detail
+            .map((e: { msg?: string }) => e.msg ?? String(e))
+            .join(', ');
+        } else {
+          detail = String(body.detail);
+        }
+      }
     } catch {
       /* ignore */
     }
@@ -65,7 +74,7 @@ export async function listFiles(
 ): Promise<FilesListResponse> {
   const skip = (page - 1) * limit;
   const res = await apiFetch(
-    `/api/files?skip=${skip}&limit=${limit}&sort_by=${sortBy}`,
+    `/files?skip=${skip}&limit=${limit}&sort_by=${sortBy}`,
   );
   await checkOk(res);
   return res.json();
@@ -73,14 +82,14 @@ export async function listFiles(
 
 /** Fetch full metadata for a single file. */
 export async function getFile(fileId: number): Promise<FileDetail> {
-  const res = await apiFetch(`/api/files/${fileId}`);
+  const res = await apiFetch(`/files/${fileId}`);
   await checkOk(res);
   return res.json();
 }
 
 /** Delete a file record from the database. */
 export async function deleteFile(fileId: number): Promise<void> {
-  const res = await apiFetch(`/api/files/${fileId}`, { method: 'DELETE' });
+  const res = await apiFetch(`/files/${fileId}`, { method: 'DELETE' });
   await checkOk(res);
 }
 
@@ -99,7 +108,7 @@ export async function uploadFiles(
     // React Native's FormData accepts `{ uri, name, type }` objects directly.
     form.append('files', { uri: f.uri, name: f.name, type: f.type } as unknown as Blob);
   }
-  const res = await fetch(`${API_BASE}/api/files/upload`, {
+  const res = await fetch(`${API_BASE}/files/upload`, {
     method: 'POST',
     headers: auth,
     body: form,
@@ -115,7 +124,7 @@ export async function uploadFiles(
 /** Full-text + semantic search. */
 export async function searchFiles(query: string, k = 20): Promise<SearchResponse> {
   const auth = await authHeaders();
-  const res = await fetch(`${API_BASE}/api/search`, {
+  const res = await fetch(`${API_BASE}/search`, {
     method: 'POST',
     headers: { ...auth, 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, k }),
@@ -130,7 +139,7 @@ export async function searchFiles(query: string, k = 20): Promise<SearchResponse
 
 /** Retrieve extracted text for a file (may be large). */
 export async function getFileText(fileId: number): Promise<string> {
-  const res = await apiFetch(`/api/files/${fileId}/text`);
+  const res = await apiFetch(`/files/${fileId}/text`);
   await checkOk(res);
   const data = await res.json();
   return (data?.text as string | undefined) ?? '';

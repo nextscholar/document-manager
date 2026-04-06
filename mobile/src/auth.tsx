@@ -45,6 +45,13 @@ const STACK_PUBLISHABLE_CLIENT_KEY =
 const STACK_AUTH_URL =
   process.env.EXPO_PUBLIC_STACK_AUTH_URL ?? 'https://api.stack-auth.com';
 
+// HTTPS redirect URI registered with Stack Auth and Google Cloud Console.
+// The web relay page at this URL forwards the OAuth code to the app's custom
+// URL scheme (document-manager://auth/callback).
+const OAUTH_REDIRECT_URI =
+  process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI ??
+  'https://smartsearch.nextscholar.site/auth/callback';
+
 // ---------------------------------------------------------------------------
 // AsyncStorage keys
 // ---------------------------------------------------------------------------
@@ -280,7 +287,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   //   code_challenge, code_challenge_method, response_type, type
   // -------------------------------------------------------------------------
   const signInWithOAuth = useCallback(async () => {
-    const redirectUri = Linking.createURL('auth/callback');
+    // HTTPS redirect URI registered with Stack Auth (must be HTTPS).
+    // The web relay page at this URL immediately redirects to the app's
+    // custom scheme so openAuthSessionAsync can intercept it.
+    const redirectUri = OAUTH_REDIRECT_URI;
+    // Custom-scheme URL that openAuthSessionAsync watches for to know when to
+    // close the browser and return control to the app.
+    const nativeCallbackUrl = Linking.createURL('auth/callback');
 
     // PKCE – required for mobile OAuth flows
     const codeVerifier = generateCodeVerifier();
@@ -307,7 +320,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       WebBrowser.warmUpAsync();
     }
 
-    const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+    const result = await WebBrowser.openAuthSessionAsync(authUrl, nativeCallbackUrl);
 
     if (Platform.OS === 'ios' || Platform.OS === 'android') {
       WebBrowser.coolDownAsync();
