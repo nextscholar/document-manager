@@ -239,8 +239,10 @@ function DocumentView() {
       for (let i = 0; i < line.length; i++) {
         const ch = line[i]
         if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-          else inQuotes = !inQuotes
+          if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+            current += '"';
+            i++; // consume the second '"' in a "" escape pair; for-loop will advance past it
+          } else inQuotes = !inQuotes
         } else if (ch === ',' && !inQuotes) {
           cells.push(current); current = ''
         } else {

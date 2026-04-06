@@ -9,6 +9,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -383,7 +384,6 @@ async def get_file_text_preview(file_id: int, db: Session = Depends(get_db)):
 
         elif extension in ['.html', '.htm']:
             # Strip HTML tags and return readable plain text
-            from bs4 import BeautifulSoup
             with open(str(file_path), 'r', encoding='utf-8', errors='ignore') as f:
                 raw_html = f.read()
             soup = BeautifulSoup(raw_html, 'html.parser')
