@@ -9,6 +9,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://smartsearchapi.nextscholar.site",
         "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site",
+        "EXPO_PUBLIC_OAUTH_REDIRECT_URI": "https://smartsearch.nextscholar.site/auth/callback",
         "EXPO_PUBLIC_STACK_PROJECT_ID": "$EXPO_PUBLIC_STACK_PROJECT_ID",
         "EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY": "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY"
       },
@@ -23,6 +24,7 @@
       "env": {
         "EXPO_PUBLIC_API_URL": "https://smartsearchapi.nextscholar.site",
         "EXPO_PUBLIC_STACK_AUTH_URL": "https://authapi.nextscholar.site",
+        "EXPO_PUBLIC_OAUTH_REDIRECT_URI": "https://smartsearch.nextscholar.site/auth/callback",
         "EXPO_PUBLIC_STACK_PROJECT_ID": "$EXPO_PUBLIC_STACK_PROJECT_ID",
         "EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY": "$EXPO_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY"
       },

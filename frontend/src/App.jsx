@@ -18,6 +18,7 @@ import Settings from './pages/settings'
 import EntryInspector from './pages/EntryInspector'
 import EmbeddingViz from './pages/EmbeddingViz'
 import Setup from './pages/Setup'
+import MobileAuthCallback from './pages/MobileAuthCallback'
 
 // Full-page loading fallback shown while Stack Auth initializes
 function AuthLoadingFallback() {
@@ -100,6 +101,8 @@ function App() {
                 <div style={{ paddingTop: '60px' }}>
                   <Routes>
                     <Route path="/handler/*" element={<StackHandler app={stackApp} fullPage />} />
+                    {/* Public relay – forwards OAuth code to the mobile app's custom scheme */}
+                    <Route path="/auth/callback" element={<MobileAuthCallback />} />
                     <Route path="/setup" element={<Setup />} />
                     <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
                     <Route path="/browse" element={<ProtectedRoute><Browse /></ProtectedRoute>} />
