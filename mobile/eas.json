@@ -31,9 +31,7 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "ios": {
-        "resourceClass": "m-medium"
-      }
+      "ios": {}
     }
   },
   "submit": {
