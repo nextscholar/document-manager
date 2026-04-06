@@ -472,3 +472,40 @@
     padding: 0;
   }
 }
+
+/* PDF Viewer */
+.pdfViewer {
+  width: 100%;
+  min-height: 800px;
+}
+
+.pdfViewer embed {
+  border: none;
+  border-radius: var(--border-radius);
+  display: block;
+}
+
+.pdfFallback {
+  padding: var(--spacing-md);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.pdfFallback a {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* CSV viewer */
+.csv pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  background: var(--color-bg-card);
+  padding: var(--spacing-md);
+  border-radius: var(--border-radius);
+  overflow-x: auto;
+}
