@@ -22,7 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
-import { getFile, getFileText, getFileMetadata } from '../../src/api';
+import { getFile, getFileText, getFileMetadata, getFileContentUrl } from '../../src/api';
 import type { FileDetail, FileMetadata } from '../../src/types';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -329,8 +329,8 @@ export default function DocumentScreen() {
       {/* View PDF button */}
       {isPdf && (
         <TouchableOpacity
-          style={styles.viewPdfBtn}
-          onPress={() => WebBrowser.openBrowserAsync(`${API_BASE}/api/files/${fileId}/content`)}
+          style={[styles.shareBtn, styles.viewPdfBtn]}
+          onPress={() => WebBrowser.openBrowserAsync(getFileContentUrl(fileId))}
         >
           <Ionicons name="document-outline" size={18} color="#E8E8E8" style={{ marginRight: 8 }} />
           <Text style={styles.shareBtnText}>View PDF</Text>
@@ -488,14 +488,7 @@ const styles = StyleSheet.create({
   },
   viewPdfBtn: {
     backgroundColor: '#1A2A3A',
-    borderRadius: 12,
-    borderWidth: 1,
     borderColor: '#2A4A6A',
-    paddingVertical: 15,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
     marginBottom: 8,
   },
   shareBtnText: { color: '#E8E8E8', fontSize: 15, fontWeight: '600' },
