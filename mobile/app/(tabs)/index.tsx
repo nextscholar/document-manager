@@ -113,7 +113,7 @@ function AiAnswerCard({ result, onSourcePress }: AiAnswerCardProps) {
           </Text>
           {result.sources.map((src, i) => (
             <TouchableOpacity
-              key={i}
+              key={src.id != null ? String(src.id) : `src-${i}`}
               style={styles.sourceRow}
               onPress={() => src.file_id != null && onSourcePress(src.file_id)}
               disabled={src.file_id == null}
@@ -306,7 +306,7 @@ export default function HomeScreen() {
       </View>
 
       {/* Search bar */}
-      <View style={styles.searchBar}>
+      <View style={[styles.searchBar, mode === 'ask' && styles.searchBarAsk]}>
         <Ionicons
           name={mode === 'ask' ? 'sparkles-outline' : 'search-outline'}
           size={18}
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
 
   searchBar: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
     marginHorizontal: 20,
@@ -450,6 +450,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1,
     borderColor: '#2A2A2A',
+  },
+  searchBarAsk: {
+    alignItems: 'flex-start',
   },
   searchIcon: { marginRight: 8, marginTop: 13 },
   searchInput: { flex: 1, minHeight: 44, color: '#E8E8E8', fontSize: 15, paddingTop: 10, paddingBottom: 10 },

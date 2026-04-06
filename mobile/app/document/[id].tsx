@@ -109,7 +109,9 @@ export default function DocumentScreen() {
     if (!fileId) return;
     getFileMetadata(fileId)
       .then(setMetadata)
-      .catch(() => { /* metadata is optional – ignore errors */ });
+      .catch((err: unknown) => {
+        console.warn('Failed to load file metadata:', (err as Error).message);
+      });
   }, [fileId]);
 
   // -------------------------------------------------------------------------
