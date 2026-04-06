@@ -84,7 +84,7 @@ function parseCsvRow(line: string): string[] {
     if (ch === '"') {
       if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
         current += '"';
-        i++; // consume the second '"' in a "" escape pair; for-loop will advance past it
+        i++; // consume the second '"' in a "" escape pair; for loop will advance past it
       } else inQuotes = !inQuotes;
     } else if (ch === ',' && !inQuotes) {
       cells.push(current); current = '';
@@ -378,9 +378,9 @@ export default function DocumentScreen() {
                 <CsvTable raw={text} />
               </View>
             ) : isMarkdownFile ? (
-              /* Markdown: render with proper styling */
+              /* Markdown: render with proper styling, respecting expand/collapse */
               <View style={styles.previewCard}>
-                <Markdown style={markdownStyles}>{text}</Markdown>
+                <Markdown style={markdownStyles}>{textPreview ?? ''}</Markdown>
                 {text.length > 1200 && (
                   <TouchableOpacity
                     style={styles.expandBtn}

@@ -387,8 +387,8 @@ async def get_file_text_preview(file_id: int, db: Session = Depends(get_db)):
             with open(str(file_path), 'r', encoding='utf-8', errors='ignore') as f:
                 raw_html = f.read()
             soup = BeautifulSoup(raw_html, 'html.parser')
-            # Remove script/style elements entirely
-            for tag in soup(['script', 'style', 'head']):
+            # Remove script/style/dangerous elements entirely
+            for tag in soup(['script', 'style', 'head', 'iframe', 'object', 'embed']):
                 tag.decompose()
             text_content = soup.get_text(separator='\n')
 
