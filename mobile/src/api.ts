@@ -158,9 +158,11 @@ export async function getFileMetadata(fileId: number): Promise<FileMetadata> {
   return res.json();
 }
 
-// ---------------------------------------------------------------------------
-// AI Ask
-// ---------------------------------------------------------------------------
+/** Return the URL for streaming a file's raw content (suitable for WebBrowser/download). */
+export function getFileContentUrl(fileId: number): string {
+  return `${API_BASE}/files/${fileId}/content`;
+}
+
 
 /**
  * Ask an LLM-powered question against the archive.

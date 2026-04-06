@@ -9,6 +9,7 @@ import json
 import numpy as np
 from pathlib import Path
 from typing import Optional, List, Dict
+from bs4 import BeautifulSoup
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse, StreamingResponse
 from sqlalchemy.orm import Session
@@ -268,7 +269,8 @@ async def serve_file_content(file_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         path=str(file_path),
         media_type=mime_type or "application/octet-stream",
-        filename=file.filename
+        filename=file.filename,
+        content_disposition_type="inline",
     )
 
 
@@ -376,7 +378,22 @@ async def get_file_text_preview(file_id: int, db: Session = Depends(get_db)):
             text_content = "\n\n".join(text_parts)
 
         elif extension in ['.txt', '.md', '.markdown']:
-            # Plain text files
+            # Plain text / Markdown files — return raw content so clients can render markup
+            with open(str(file_path), 'r', encoding='utf-8', errors='ignore') as f:
+                text_content = f.read()
+
+        elif extension in ['.html', '.htm']:
+            # Strip HTML tags and return readable plain text
+            with open(str(file_path), 'r', encoding='utf-8', errors='ignore') as f:
+                raw_html = f.read()
+            soup = BeautifulSoup(raw_html, 'html.parser')
+            # Remove script/style/dangerous elements entirely
+            for tag in soup(['script', 'style', 'head', 'iframe', 'object', 'embed']):
+                tag.decompose()
+            text_content = soup.get_text(separator='\n')
+
+        elif extension == '.csv':
+            # Return raw CSV content — clients parse/render it themselves
             with open(str(file_path), 'r', encoding='utf-8', errors='ignore') as f:
                 text_content = f.read()
 
@@ -386,10 +403,13 @@ async def get_file_text_preview(file_id: int, db: Session = Depends(get_db)):
                 detail=f"Text extraction not supported for {extension} files"
             )
 
-        # Clean up text: remove excessive whitespace
-        text_content = "\n\n".join(
-            line.strip() for line in text_content.split("\n") if line.strip()
-        )
+        # For markdown/CSV files preserve original whitespace; for all others collapse blank lines
+        if extension in ['.md', '.markdown', '.csv']:
+            pass  # keep raw content intact
+        else:
+            text_content = "\n\n".join(
+                line.strip() for line in text_content.split("\n") if line.strip()
+            )
 
         return {
             "text": text_content,

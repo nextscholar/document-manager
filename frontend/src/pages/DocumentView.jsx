@@ -229,6 +229,33 @@ function DocumentView() {
       .trim()
   }
 
+  const parseCsv = (text) => {
+    if (!text) return { headers: [], rows: [] }
+    const lines = text.split(/\r?\n/).filter(line => line.trim())
+    const parseRow = (line) => {
+      const cells = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+            current += '"';
+            i++; // consume the second '"' in a "" escape pair; for loop will advance past it
+          } else inQuotes = !inQuotes
+        } else if (ch === ',' && !inQuotes) {
+          cells.push(current); current = ''
+        } else {
+          current += ch
+        }
+      }
+      cells.push(current)
+      return cells
+    }
+    const [headerLine, ...dataLines] = lines
+    return { headers: parseRow(headerLine), rows: dataLines.map(parseRow) }
+  }
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
@@ -442,7 +469,7 @@ function DocumentView() {
           <div className={styles.error}>Error: {contentError}</div>
         ) : isHtml ? (
           <div 
-            className={styles.text}
+            className={`${styles.text} ${styles.htmlContent}`}
             dangerouslySetInnerHTML={{ __html: getProcessedHtml(content) }}
           />
         ) : isMarkdown ? (
@@ -452,9 +479,27 @@ function DocumentView() {
             </ReactMarkdown>
           </div>
         ) : isCsv ? (
-          <div className={`${styles.text} ${styles.csv}`}>
-            <pre>{content}</pre>
-          </div>
+          (() => {
+            const { headers, rows } = parseCsv(content)
+            return (
+              <div className={styles.csvWrapper}>
+                <table className={styles.csvTable}>
+                  {headers.length > 0 && (
+                    <thead>
+                      <tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr>
+                    </thead>
+                  )}
+                  <tbody>
+                    {rows.map((row, ri) => (
+                      <tr key={ri}>
+                        {row.map((cell, ci) => <td key={ci}>{cell}</td>)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()
         ) : (
           <div className={styles.text}>
             {getProcessedText(content)}
