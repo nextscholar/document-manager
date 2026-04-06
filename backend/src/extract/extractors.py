@@ -415,9 +415,11 @@ def extract_file_content(file_path: Path, extension: str) -> Tuple[str, str, Dic
             
         elif file_type == 'pdf':
             raw_text, metadata = extract_text_from_pdf(file_path)
+            raw_text = raw_text.replace('\x00', '')  # Remove NUL characters
             
         elif file_type == 'document':
             raw_text, metadata = extract_text_from_document_via_tika(file_path)
+            raw_text = raw_text.replace('\x00', '')  # Remove NUL characters
             if not raw_text:
                 logger.warning(f"Document extraction returned no text for {file_path.name} ({extension})")
             
