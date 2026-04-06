@@ -15,6 +15,7 @@ import {
   Alert,
   Share,
   Platform,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,8 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getFile, getFileText, getFileMetadata } from '../../src/api';
 import type { FileDetail, FileMetadata } from '../../src/types';
+
+const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -219,6 +222,18 @@ export default function DocumentScreen() {
               <Text style={styles.tagText}>{tag}</Text>
             </View>
           ))}
+        </View>
+      )}
+
+      {/* Image preview for image files */}
+      {file.is_image && (
+        <View style={styles.imageCard}>
+          <Image
+            source={{ uri: `${API_BASE}/images/${file.id}/full` }}
+            style={styles.imagePreview}
+            resizeMode="contain"
+            accessibilityLabel={file.filename}
+          />
         </View>
       )}
 
@@ -432,6 +447,20 @@ const styles = StyleSheet.create({
   seriesTitle: { fontSize: 12, fontWeight: '600', color: '#A78BFA', textTransform: 'uppercase', letterSpacing: 0.5 },
   seriesName: { fontSize: 14, color: '#CCC', fontWeight: '600', marginBottom: 4 },
   seriesPart: { fontSize: 12, color: '#777' },
+
+  imageCard: {
+    backgroundColor: '#141414',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#222',
+    marginBottom: 20,
+    overflow: 'hidden',
+    alignItems: 'center',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 300,
+  },
 
   shareBtn: {
     backgroundColor: '#1A1A1A',

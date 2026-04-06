@@ -83,7 +83,7 @@ services:
     volumes:
       - worker_shared:/app/shared
       - ./config:/app/config
-      - ./archive_root:/data/archive/inbox 
+      - archive_data:/data/archive/inbox
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@archive-brain-db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
@@ -118,7 +118,7 @@ services:
     volumes:
       - ./config:/app/config
       - worker_shared:/app/shared
-      - ./archive_root:/data/archive/inbox 
+      - archive_data:/data/archive/inbox
     environment:
       DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-password}@archive-brain-db:5432/${DB_NAME:-archive_brain}
       DB_HOST: db
@@ -165,6 +165,7 @@ services:
       - dokploy-network
 volumes:
   archive_brain:
+  archive_data:
   worker_shared:
   ollama_models:
 

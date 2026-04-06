@@ -68,7 +68,8 @@ function DocumentView() {
           name.endsWith('.md') ||
           name.endsWith('.markdown') ||
           name.endsWith('.html') ||
-          name.endsWith('.htm')
+          name.endsWith('.htm') ||
+          name.endsWith('.csv')
 
         // Document files that need text extraction
         const extractablePreviewable =
@@ -166,6 +167,8 @@ function DocumentView() {
   const filename = file.filename.toLowerCase()
   const isHtml = filename.endsWith('.html')
   const isMarkdown = filename.endsWith('.md') || filename.endsWith('.markdown')
+  const isPdf = filename.endsWith('.pdf')
+  const isCsv = filename.endsWith('.csv')
 
   const getProcessedHtml = (htmlContent) => {
     if (!htmlContent) return ''
@@ -418,7 +421,22 @@ function DocumentView() {
       )}
 
       <article className={styles.content}>
-        {contentLoading ? (
+        {isPdf ? (
+          <div className={styles.pdfViewer}>
+            <embed
+              src={`/api/files/${id}/content`}
+              type="application/pdf"
+              width="100%"
+              height="800px"
+              title={file.filename}
+            />
+            {contentError && (
+              <div className={styles.pdfFallback}>
+                <p>Unable to embed PDF. <a href={`/api/files/${id}/content`} target="_blank" rel="noopener noreferrer">Open in new tab</a></p>
+              </div>
+            )}
+          </div>
+        ) : contentLoading ? (
           <div className={styles.loading}>Loading content...</div>
         ) : contentError ? (
           <div className={styles.error}>Error: {contentError}</div>
@@ -432,6 +450,10 @@ function DocumentView() {
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {content || ''}
             </ReactMarkdown>
+          </div>
+        ) : isCsv ? (
+          <div className={`${styles.text} ${styles.csv}`}>
+            <pre>{content}</pre>
           </div>
         ) : (
           <div className={styles.text}>

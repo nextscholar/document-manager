@@ -39,9 +39,21 @@ class FileDetail(BaseModel):
     filename: str
     extension: str
     size_bytes: int
+    # file_size is an alias for size_bytes for mobile client compatibility
+    file_size: Optional[int] = None
     created_at: str
     modified_at: str
+    # mtime is an alias for modified_at for mobile client compatibility
+    mtime: Optional[str] = None
     entry_count: int
+    is_image: bool = False
+    file_type: Optional[str] = None
+    category: Optional[str] = None
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
+    page_count: Optional[int] = None
+    word_count: Optional[int] = None
+    language: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -189,10 +201,16 @@ async def list_files(
                 "path": f.path,
                 "extension": f.extension,
                 "size_bytes": f.size_bytes,
+                "file_size": f.size_bytes,  # alias for mobile client compatibility
                 "created_at": f.created_at.isoformat() if f.created_at else None,
                 "modified_at": f.mtime.isoformat() if f.mtime else None,
+                "mtime": f.mtime.isoformat() if f.mtime else None,  # alias for mobile client compatibility
                 "doc_category": f.meta_json.get("doc_category") if f.meta_json else None,
+                "category": f.meta_json.get("doc_category") if f.meta_json else None,  # alias for mobile client compatibility
                 "doc_author": f.meta_json.get("doc_author") if f.meta_json else None,
+                "is_image": f.file_type == 'image',
+                "uploaded_by": f.uploaded_by,
+                "status": f.status,
             }
             for f in files
         ],
@@ -211,15 +229,27 @@ async def get_file(file_id: int, db: Session = Depends(get_db)):
     
     entry_count = db.query(Entry).filter(Entry.file_id == file_id).count()
     
+    meta = file.meta_json or {}
+    mtime_str = file.mtime.isoformat() if file.mtime else None
     return FileDetail(
         id=file.id,
         path=file.path,
         filename=file.filename,
         extension=file.extension,
         size_bytes=file.size_bytes or 0,
+        file_size=file.size_bytes,
         created_at=file.created_at.isoformat() if file.created_at else "",
-        modified_at=file.mtime.isoformat() if file.mtime else "",
-        entry_count=entry_count
+        modified_at=mtime_str or "",
+        mtime=mtime_str,
+        entry_count=entry_count,
+        is_image=file.file_type == 'image',
+        file_type=file.file_type,
+        category=meta.get("doc_category"),
+        summary=meta.get("doc_summary"),
+        tags=meta.get("doc_tags"),
+        page_count=meta.get("page_count"),
+        word_count=meta.get("word_count"),
+        language=meta.get("language"),
     )
 
 
@@ -768,10 +798,14 @@ def list_images(
     has_description: Optional[bool] = None,
     sort_by: str = "created_at",
     sort_dir: str = "desc",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
 ):
-    """List all image files with optional filters and sorting."""
-    query = db.query(RawFile).filter(RawFile.file_type == 'image')
+    """List image files belonging to the authenticated user with optional filters and sorting."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    query = db.query(RawFile).filter(RawFile.file_type == 'image', RawFile.uploaded_by == user_id)
 
     if has_description is True:
         query = query.filter(RawFile.vision_description.isnot(None))
@@ -816,16 +850,23 @@ def list_images(
 
 
 @router.get("/images/stats")
-def get_image_stats(db: Session = Depends(get_db)):
-    """Get statistics about images in the archive."""
-    total_images = db.query(RawFile).filter(RawFile.file_type == 'image').count()
+def get_image_stats(
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
+):
+    """Get statistics about images belonging to the authenticated user."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    base_filter = [RawFile.file_type == 'image', RawFile.uploaded_by == user_id]
+    total_images = db.query(RawFile).filter(*base_filter).count()
     with_ocr = db.query(RawFile).filter(
-        RawFile.file_type == 'image',
+        *base_filter,
         RawFile.ocr_text.isnot(None),
         RawFile.ocr_text != ''
     ).count()
     with_description = db.query(RawFile).filter(
-        RawFile.file_type == 'image',
+        *base_filter,
         RawFile.vision_description.isnot(None)
     ).count()
     
@@ -833,7 +874,7 @@ def get_image_stats(db: Session = Depends(get_db)):
         RawFile.extension, 
         func.count(RawFile.id)
     ).filter(
-        RawFile.file_type == 'image'
+        *base_filter
     ).group_by(RawFile.extension).all()
     
     return {
@@ -846,9 +887,18 @@ def get_image_stats(db: Session = Depends(get_db)):
 
 
 @router.get("/images/{image_id}")
-def get_image_details(image_id: int, db: Session = Depends(get_db)):
-    """Get full details for a specific image."""
-    image = db.query(RawFile).filter(RawFile.id == image_id, RawFile.file_type == 'image').first()
+def get_image_details(
+    image_id: int,
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
+):
+    """Get full details for a specific image owned by the authenticated user."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    image = db.query(RawFile).filter(
+        RawFile.id == image_id, RawFile.file_type == 'image', RawFile.uploaded_by == user_id
+    ).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
@@ -869,9 +919,18 @@ def get_image_details(image_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/images/{image_id}/thumbnail")
-def serve_thumbnail(image_id: int, db: Session = Depends(get_db)):
-    """Serve thumbnail image."""
-    image = db.query(RawFile).filter(RawFile.id == image_id, RawFile.file_type == 'image').first()
+def serve_thumbnail(
+    image_id: int,
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
+):
+    """Serve thumbnail image for images owned by the authenticated user."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    image = db.query(RawFile).filter(
+        RawFile.id == image_id, RawFile.file_type == 'image', RawFile.uploaded_by == user_id
+    ).first()
     if not image or not image.thumbnail_path:
         raise HTTPException(status_code=404, detail="Thumbnail not found")
     
@@ -885,9 +944,18 @@ def serve_thumbnail(image_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/images/{image_id}/full")
-def serve_full_image(image_id: int, db: Session = Depends(get_db)):
-    """Serve full resolution image."""
-    image = db.query(RawFile).filter(RawFile.id == image_id, RawFile.file_type == 'image').first()
+def serve_full_image(
+    image_id: int,
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
+):
+    """Serve full resolution image owned by the authenticated user."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    image = db.query(RawFile).filter(
+        RawFile.id == image_id, RawFile.file_type == 'image', RawFile.uploaded_by == user_id
+    ).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
@@ -1038,9 +1106,19 @@ def get_vision_models():
 
 
 @router.post("/images/{image_id}/analyze")
-async def analyze_image(image_id: int, model: Optional[str] = None, db: Session = Depends(get_db)):
+async def analyze_image(
+    image_id: int,
+    model: Optional[str] = None,
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
+):
     """Analyze an image with vision model."""
-    image = db.query(RawFile).filter(RawFile.id == image_id, RawFile.file_type == 'image').first()
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
+    image = db.query(RawFile).filter(
+        RawFile.id == image_id, RawFile.file_type == 'image', RawFile.uploaded_by == user_id
+    ).first()
     if not image:
         raise HTTPException(status_code=404, detail="Image not found")
     
@@ -1062,12 +1140,18 @@ async def analyze_image(image_id: int, model: Optional[str] = None, db: Session 
 async def analyze_images_batch(
     image_ids: List[int],
     model: Optional[str] = None,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user_id: Optional[str] = Depends(get_current_user),
 ):
     """Analyze multiple images in batch."""
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Authentication required.")
+
     results = []
     for image_id in image_ids:
-        image = db.query(RawFile).filter(RawFile.id == image_id, RawFile.file_type == 'image').first()
+        image = db.query(RawFile).filter(
+            RawFile.id == image_id, RawFile.file_type == 'image', RawFile.uploaded_by == user_id
+        ).first()
         if not image:
             results.append({"image_id": image_id, "error": "Image not found"})
             continue
