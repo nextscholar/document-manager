@@ -70,7 +70,7 @@ class EnrichmentConfigUpdate(BaseModel):
 # ============================================================================
 
 MAX_UPLOAD_FILES = 10
-MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024  # 50 MB
+MAX_UPLOAD_SIZE_BYTES = 1 * 1024 * 1024  # 1 MB
 
 # Determine the upload inbox directory.  Prefer the env-var UPLOAD_DIR so it
 # can be overridden in docker-compose; fall back to /data/archive/inbox which

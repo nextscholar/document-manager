@@ -4,7 +4,7 @@ import styles from './FileUploader.module.css';
 import { apiFetch } from '../lib/api';
 
 const MAX_FILES = 10;
-const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const MAX_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB
 
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
