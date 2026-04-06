@@ -39,9 +39,11 @@ class FileDetail(BaseModel):
     filename: str
     extension: str
     size_bytes: int
+    # file_size is an alias for size_bytes for mobile client compatibility
     file_size: Optional[int] = None
     created_at: str
     modified_at: str
+    # mtime is an alias for modified_at for mobile client compatibility
     mtime: Optional[str] = None
     entry_count: int
     is_image: bool = False
@@ -199,12 +201,12 @@ async def list_files(
                 "path": f.path,
                 "extension": f.extension,
                 "size_bytes": f.size_bytes,
-                "file_size": f.size_bytes,
+                "file_size": f.size_bytes,  # alias for mobile client compatibility
                 "created_at": f.created_at.isoformat() if f.created_at else None,
                 "modified_at": f.mtime.isoformat() if f.mtime else None,
-                "mtime": f.mtime.isoformat() if f.mtime else None,
+                "mtime": f.mtime.isoformat() if f.mtime else None,  # alias for mobile client compatibility
                 "doc_category": f.meta_json.get("doc_category") if f.meta_json else None,
-                "category": f.meta_json.get("doc_category") if f.meta_json else None,
+                "category": f.meta_json.get("doc_category") if f.meta_json else None,  # alias for mobile client compatibility
                 "doc_author": f.meta_json.get("doc_author") if f.meta_json else None,
                 "is_image": f.file_type == 'image',
                 "uploaded_by": f.uploaded_by,
