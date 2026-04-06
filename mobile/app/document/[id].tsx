@@ -20,8 +20,8 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { getFile, getFileText } from '../../src/api';
-import type { FileDetail } from '../../src/types';
+import { getFile, getFileText, getFileMetadata } from '../../src/api';
+import type { FileDetail, FileMetadata } from '../../src/types';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -75,6 +75,7 @@ export default function DocumentScreen() {
   const fileId = Number(id);
 
   const [file, setFile] = useState<FileDetail | null>(null);
+  const [metadata, setMetadata] = useState<FileMetadata | null>(null);
   const [text, setText] = useState<string | null>(null);
   const [textLoading, setTextLoading] = useState(false);
   const [textExpanded, setTextExpanded] = useState(false);
@@ -98,6 +99,17 @@ export default function DocumentScreen() {
         setLoading(false);
       }
     })();
+  }, [fileId]);
+
+  // -------------------------------------------------------------------------
+  // Load AI metadata (enrichment, processing status, series)
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    if (!fileId) return;
+    getFileMetadata(fileId)
+      .then(setMetadata)
+      .catch(() => { /* metadata is optional – ignore errors */ });
   }, [fileId]);
 
   // -------------------------------------------------------------------------
@@ -210,6 +222,10 @@ export default function DocumentScreen() {
 
       {/* Metadata */}
       <View style={styles.metaCard}>
+        {/* AI-enriched author (from metadata endpoint) */}
+        {metadata?.enrichment?.author ? (
+          <MetaRow icon="person-outline" label="Author" value={metadata.enrichment.author} />
+        ) : null}
         {file.category && (
           <MetaRow icon="pricetag-outline" label="Category" value={file.category} />
         )}
@@ -232,7 +248,38 @@ export default function DocumentScreen() {
             value={file.word_count.toLocaleString()}
           />
         )}
+        {/* Processing status */}
+        {metadata?.processing?.status ? (
+          <MetaRow
+            icon={metadata.processing.status === 'ok' ? 'checkmark-circle-outline' : 'alert-circle-outline'}
+            label="Status"
+            value={metadata.processing.status}
+          />
+        ) : null}
+        {metadata?.processing?.entry_count != null ? (
+          <MetaRow icon="layers-outline" label="Chunks" value={String(metadata.processing.entry_count)} />
+        ) : null}
+        {metadata?.processing?.doc_status ? (
+          <MetaRow icon="analytics-outline" label="Embeddings" value={metadata.processing.doc_status} />
+        ) : null}
       </View>
+
+      {/* Series info */}
+      {metadata?.series?.name ? (
+        <View style={styles.seriesCard}>
+          <View style={styles.seriesHeader}>
+            <Ionicons name="library-outline" size={15} color="#A78BFA" style={{ marginRight: 6 }} />
+            <Text style={styles.seriesTitle}>Series</Text>
+          </View>
+          <Text style={styles.seriesName}>{metadata.series.name}</Text>
+          {metadata.series.number != null && (
+            <Text style={styles.seriesPart}>
+              Part {metadata.series.number}
+              {metadata.series.total != null ? ` of ${metadata.series.total}` : ''}
+            </Text>
+          )}
+        </View>
+      ) : null}
 
       {/* Text preview */}
       {!file.is_image && (
@@ -370,6 +417,19 @@ const styles = StyleSheet.create({
   expandBtn: { marginTop: 8, alignItems: 'center', paddingVertical: 6 },
   expandBtnText: { color: '#4A9EFF', fontSize: 13, fontWeight: '600' },
   noText: { color: '#555', fontSize: 13, fontStyle: 'italic' },
+
+  seriesCard: {
+    backgroundColor: '#12101E',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2D1F4E',
+    padding: 14,
+    marginBottom: 20,
+  },
+  seriesHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6 },
+  seriesTitle: { fontSize: 12, fontWeight: '600', color: '#A78BFA', textTransform: 'uppercase', letterSpacing: 0.5 },
+  seriesName: { fontSize: 14, color: '#CCC', fontWeight: '600', marginBottom: 4 },
+  seriesPart: { fontSize: 12, color: '#777' },
 
   shareBtn: {
     backgroundColor: '#1A1A1A',
