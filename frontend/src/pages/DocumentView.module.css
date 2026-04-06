@@ -312,7 +312,8 @@
   color: var(--color-text);
 }
 
-/* Markdown Rendered Content */
+/* HTML and Markdown content should not force pre-wrap */
+.htmlContent,
 .markdown {
   white-space: normal;
 }
@@ -497,15 +498,45 @@
   text-decoration: underline;
 }
 
-/* CSV viewer */
-.csv pre {
-  white-space: pre-wrap;
-  word-break: break-all;
-  font-family: 'Courier New', Courier, monospace;
+/* CSV viewer — rendered as a table */
+.csvWrapper {
+  overflow-x: auto;
+  border-radius: var(--border-radius);
+  border: 1px solid var(--color-border);
+}
+
+.csvTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Fira Code', 'Courier New', monospace;
   font-size: var(--font-size-sm);
   color: var(--color-text);
+}
+
+.csvTable thead tr {
+  background: var(--color-bg-hover);
+}
+
+.csvTable th {
+  padding: 0.55em 0.9em;
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.csvTable td {
+  padding: 0.45em 0.9em;
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.csvTable tbody tr:nth-child(even) {
   background: var(--color-bg-card);
-  padding: var(--spacing-md);
-  border-radius: var(--border-radius);
-  overflow-x: auto;
+}
+
+.csvTable tbody tr:hover {
+  background: var(--color-bg-hover);
 }

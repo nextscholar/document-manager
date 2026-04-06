@@ -2,7 +2,8 @@
  * Document detail screen.
  *
  * Shows metadata (category, tags, summary, dates, file size) and,
- * if the backend can extract text, a scrollable text preview.
+ * if the backend can extract text, a scrollable text preview with
+ * type-aware rendering: Markdown, CSV tables, and plain text.
  */
 import { useState, useEffect, useCallback } from 'react';
 import {
@@ -19,6 +20,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import Markdown from 'react-native-markdown-display';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
@@ -66,6 +68,62 @@ function MetaRow({ icon, label, value }: MetaRowProps) {
       <Text style={styles.metaLabel}>{label}</Text>
       <Text style={styles.metaValue}>{value}</Text>
     </View>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// CSV parser
+// ---------------------------------------------------------------------------
+
+function parseCsvRow(line: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else inQuotes = !inQuotes;
+    } else if (ch === ',' && !inQuotes) {
+      cells.push(current); current = '';
+    } else {
+      current += ch;
+    }
+  }
+  cells.push(current);
+  return cells;
+}
+
+interface CsvTableProps { raw: string }
+function CsvTable({ raw }: CsvTableProps) {
+  const lines = raw.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length === 0) return <Text style={styles.noText}>Empty CSV</Text>;
+  const [headerLine, ...dataLines] = lines;
+  const headers = parseCsvRow(headerLine);
+  const rows = dataLines.map(parseCsvRow);
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator style={styles.csvScroll}>
+      <View>
+        {/* Header row */}
+        <View style={[styles.csvRow, styles.csvHeaderRow]}>
+          {headers.map((h, i) => (
+            <View key={i} style={styles.csvCell}>
+              <Text style={styles.csvHeaderText} numberOfLines={1}>{h}</Text>
+            </View>
+          ))}
+        </View>
+        {/* Data rows */}
+        {rows.map((row, ri) => (
+          <View key={ri} style={[styles.csvRow, ri % 2 === 1 && styles.csvRowAlt]}>
+            {row.map((cell, ci) => (
+              <View key={ci} style={styles.csvCell}>
+                <Text style={styles.csvCellText} numberOfLines={2}>{cell}</Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
   );
 }
 
@@ -188,6 +246,9 @@ export default function DocumentScreen() {
 
   const tags = file.tags?.filter(Boolean) ?? [];
   const isPdf = file.extension?.toLowerCase() === 'pdf';
+  const ext = file.extension?.toLowerCase() ?? '';
+  const isMarkdownFile = ext === 'md' || ext === 'markdown';
+  const isCsvFile = ext === 'csv';
   const textPreview =
     text != null && text.length > 0
       ? textExpanded
@@ -303,23 +364,48 @@ export default function DocumentScreen() {
       {/* Text preview */}
       {!file.is_image && (
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Text Preview</Text>
+          <Text style={styles.sectionTitle}>
+            {isMarkdownFile ? 'Markdown Preview' : isCsvFile ? 'CSV Preview' : 'Text Preview'}
+          </Text>
           {textLoading ? (
             <ActivityIndicator color="#4A9EFF" style={{ paddingVertical: 20 }} />
-          ) : textPreview ? (
-            <>
-              <Text style={styles.previewText} selectable>{textPreview}</Text>
-              {text!.length > 1200 && (
-                <TouchableOpacity
-                  style={styles.expandBtn}
-                  onPress={() => setTextExpanded((v) => !v)}
-                >
-                  <Text style={styles.expandBtnText}>
-                    {textExpanded ? 'Show less' : `Show more (${text!.length.toLocaleString()} chars)`}
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </>
+          ) : text != null && text.length > 0 ? (
+            isCsvFile ? (
+              /* CSV: render as a scrollable table */
+              <View style={styles.previewCard}>
+                <CsvTable raw={text} />
+              </View>
+            ) : isMarkdownFile ? (
+              /* Markdown: render with proper styling */
+              <View style={styles.previewCard}>
+                <Markdown style={markdownStyles}>{text}</Markdown>
+                {text.length > 1200 && (
+                  <TouchableOpacity
+                    style={styles.expandBtn}
+                    onPress={() => setTextExpanded((v) => !v)}
+                  >
+                    <Text style={styles.expandBtnText}>
+                      {textExpanded ? 'Show less' : `Show more (${text.length.toLocaleString()} chars)`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : (
+              /* Plain text / HTML (stripped by backend) */
+              <>
+                <Text style={styles.previewText} selectable>{textPreview}</Text>
+                {text.length > 1200 && (
+                  <TouchableOpacity
+                    style={styles.expandBtn}
+                    onPress={() => setTextExpanded((v) => !v)}
+                  >
+                    <Text style={styles.expandBtnText}>
+                      {textExpanded ? 'Show less' : `Show more (${text.length.toLocaleString()} chars)`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            )
           ) : (
             <Text style={styles.noText}>No text content available for this file.</Text>
           )}
@@ -493,4 +579,89 @@ const styles = StyleSheet.create({
   },
   shareBtnText: { color: '#E8E8E8', fontSize: 15, fontWeight: '600' },
   disabled: { opacity: 0.5 },
+
+  /* Shared card wrapper for MD / CSV previews */
+  previewCard: {
+    backgroundColor: '#141414',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#222',
+    padding: 14,
+    overflow: 'hidden',
+  },
+
+  /* CSV table */
+  csvScroll: { marginHorizontal: -2 },
+  csvRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderBottomColor: '#222',
+  },
+  csvHeaderRow: { backgroundColor: '#1A2A3A' },
+  csvRowAlt: { backgroundColor: '#181818' },
+  csvCell: {
+    minWidth: 90,
+    maxWidth: 180,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRightWidth: 1,
+    borderRightColor: '#222',
+  },
+  csvHeaderText: { color: '#7DB8F7', fontSize: 12, fontWeight: '700' },
+  csvCellText: { color: '#CCC', fontSize: 12 },
+});
+
+// ---------------------------------------------------------------------------
+// Markdown styles (passed to react-native-markdown-display)
+// ---------------------------------------------------------------------------
+
+const markdownStyles = StyleSheet.create({
+  body: { color: '#CCC', fontSize: 14, lineHeight: 22 },
+  heading1: { color: '#E8E8E8', fontSize: 22, fontWeight: '700', marginBottom: 8, marginTop: 16 },
+  heading2: { color: '#E8E8E8', fontSize: 18, fontWeight: '700', marginBottom: 6, marginTop: 14 },
+  heading3: { color: '#E8E8E8', fontSize: 16, fontWeight: '600', marginBottom: 4, marginTop: 12 },
+  heading4: { color: '#E0E0E0', fontSize: 14, fontWeight: '600', marginBottom: 4, marginTop: 10 },
+  strong: { color: '#E8E8E8', fontWeight: '700' },
+  em: { fontStyle: 'italic' },
+  link: { color: '#4A9EFF' },
+  blockquote: {
+    backgroundColor: '#1A2A3A',
+    borderLeftWidth: 4,
+    borderLeftColor: '#4A9EFF',
+    paddingLeft: 12,
+    paddingVertical: 6,
+    marginVertical: 8,
+    borderRadius: 4,
+  },
+  code_inline: {
+    backgroundColor: '#1E1E1E',
+    color: '#7DB8F7',
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  fence: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+  },
+  code_block: {
+    backgroundColor: '#1A1A1A',
+    borderRadius: 8,
+    padding: 12,
+    marginVertical: 8,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: 12,
+    color: '#AAA',
+  },
+  bullet_list: { marginVertical: 4 },
+  ordered_list: { marginVertical: 4 },
+  list_item: { marginVertical: 2, color: '#CCC' },
+  hr: { backgroundColor: '#333', height: 1, marginVertical: 12 },
+  table: { borderWidth: 1, borderColor: '#333', marginVertical: 8 },
+  thead: { backgroundColor: '#1A2A3A' },
+  th: { padding: 8, borderWidth: 1, borderColor: '#333', color: '#7DB8F7', fontWeight: '700', fontSize: 12 },
+  td: { padding: 8, borderWidth: 1, borderColor: '#333', color: '#CCC', fontSize: 12 },
 });
