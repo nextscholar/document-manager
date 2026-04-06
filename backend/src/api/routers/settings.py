@@ -13,7 +13,7 @@ from pydantic import BaseModel
 import requests
 
 from src.db.session import get_db, SessionLocal
-from src.db.settings import get_setting, set_setting, get_all_settings
+from src.db.settings import get_setting, set_setting, get_all_settings, DEFAULT_SETTINGS
 from src.db.models import RawFile
 from src.config import load_config, save_config
 from src.services import jobs as jobs_service
@@ -43,6 +43,10 @@ class SourcesUpdate(BaseModel):
 class HostPathMapping(BaseModel):
     container_path: str
     host_path: str
+
+
+class ExtensionsUpdate(BaseModel):
+    extensions: List[str]
 
 
 class LLMEndpointCreate(BaseModel):
@@ -105,15 +109,15 @@ async def get_env_overrides():
 @router.get("/settings/extensions")
 async def get_extensions(db: Session = Depends(get_db)):
     """Get configured file extensions."""
-    extensions = get_setting(db, "file_extensions") or []
+    extensions = get_setting(db, "extensions") or DEFAULT_SETTINGS["extensions"]
     return {"extensions": extensions}
 
 
 @router.put("/settings/extensions")
-async def update_extensions(extensions: List[str], db: Session = Depends(get_db)):
+async def update_extensions(data: ExtensionsUpdate, db: Session = Depends(get_db)):
     """Update file extensions list."""
-    set_setting(db, "file_extensions", extensions)
-    return {"extensions": extensions}
+    set_setting(db, "extensions", data.extensions)
+    return {"extensions": data.extensions}
 
 
 # ============================================================================
