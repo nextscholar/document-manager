@@ -86,18 +86,23 @@ that has the password credential provider enabled.
 To enable "Sign in with Google":
 
 1. In the Stack Auth dashboard, enable the **Google** OAuth provider.
-2. **Add `document-manager://auth/callback` as an allowed redirect URI** in
-   both Stack Auth **and** the Google Cloud Console OAuth app.  
-   Skipping this step causes a **"Redirect URL not in whitelist"** error on
-   login.
+2. **Add `https://smartsearch.nextscholar.site/auth/callback` as an allowed
+   redirect URI** in both Stack Auth **and** the Google Cloud Console OAuth
+   app.  Skipping this step causes a **"Redirect URL not in whitelist"** error
+   on login.
 3. Ensure the `scheme` in `app.json` matches (`"document-manager"`).
 
-> **Troubleshooting "Redirect URL not in whitelist"**  
-> The app sends `redirect_uri=document-manager://auth/callback` to Stack Auth
-> during the OAuth authorize request.  Stack Auth rejects the request if that
-> URI is not listed in the project's _Allowed Redirect URIs_ setting.
-> Go to **Stack Auth → your project → Auth Methods → OAuth → Allowed Redirect
-> URIs** and add `document-manager://auth/callback`.
+> **How the OAuth redirect works**  
+> Stack Auth and Google only accept HTTPS redirect URIs. The app therefore
+> sends `redirect_uri=https://smartsearch.nextscholar.site/auth/callback` to
+> Stack Auth.  After authentication, Stack Auth redirects to that HTTPS URL.
+> The web relay page at `/auth/callback` immediately redirects the browser to
+> `document-manager://auth/callback?code=...`, which the mobile app intercepts
+> to complete the sign-in.
+>
+> **Troubleshooting "Redirect URL not in whitelist"**: Go to  
+> **Stack Auth → your project → Auth Methods → OAuth → Allowed Redirect URIs**  
+> and add `https://smartsearch.nextscholar.site/auth/callback`.
 
 ---
 

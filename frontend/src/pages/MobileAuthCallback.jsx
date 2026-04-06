@@ -23,13 +23,11 @@ const MOBILE_SCHEME = 'document-manager'
 
 export default function MobileAuthCallback() {
   const { search } = useLocation()
+  const deepLink = `${MOBILE_SCHEME}://auth/callback${search}`
 
   useEffect(() => {
-    const deepLink = `${MOBILE_SCHEME}://auth/callback${search}`
     window.location.href = deepLink
-  }, [search])
-
-  const deepLink = `${MOBILE_SCHEME}://auth/callback${search}`
+  }, [deepLink])
 
   return (
     <div style={{
