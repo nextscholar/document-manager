@@ -49,7 +49,7 @@ class ExtensionsUpdate(BaseModel):
     extensions: List[str]
 
 
-
+class LLMEndpointCreate(BaseModel):
     name: str
     url: str
     api_key: Optional[str] = None
