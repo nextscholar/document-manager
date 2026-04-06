@@ -21,6 +21,7 @@ import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { getFile, getFileText, getFileMetadata } from '../../src/api';
 import type { FileDetail, FileMetadata } from '../../src/types';
 
@@ -186,6 +187,7 @@ export default function DocumentScreen() {
   }
 
   const tags = file.tags?.filter(Boolean) ?? [];
+  const isPdf = file.extension?.toLowerCase() === 'pdf';
   const textPreview =
     text != null && text.length > 0
       ? textExpanded
@@ -322,6 +324,17 @@ export default function DocumentScreen() {
             <Text style={styles.noText}>No text content available for this file.</Text>
           )}
         </View>
+      )}
+
+      {/* View PDF button */}
+      {isPdf && (
+        <TouchableOpacity
+          style={styles.viewPdfBtn}
+          onPress={() => WebBrowser.openBrowserAsync(`${API_BASE}/api/files/${fileId}/content`)}
+        >
+          <Ionicons name="document-outline" size={18} color="#E8E8E8" style={{ marginRight: 8 }} />
+          <Text style={styles.shareBtnText}>View PDF</Text>
+        </TouchableOpacity>
       )}
 
       {/* Share button */}
@@ -472,6 +485,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 4,
+  },
+  viewPdfBtn: {
+    backgroundColor: '#1A2A3A',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2A4A6A',
+    paddingVertical: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+    marginBottom: 8,
   },
   shareBtnText: { color: '#E8E8E8', fontSize: 15, fontWeight: '600' },
   disabled: { opacity: 0.5 },

@@ -268,7 +268,8 @@ async def serve_file_content(file_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         path=str(file_path),
         media_type=mime_type or "application/octet-stream",
-        filename=file.filename
+        filename=file.filename,
+        content_disposition_type="inline",
     )
 
 
