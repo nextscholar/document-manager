@@ -26,7 +26,7 @@ async function getAccessToken(): Promise<string | null> {
   return AsyncStorage.getItem(ACCESS_TOKEN_KEY);
 }
 
-async function authHeaders(): Promise<Record<string, string>> {
+export async function authHeaders(): Promise<Record<string, string>> {
   const token = await getAccessToken();
   return token ? { 'x-stack-access-token': token } : {};
 }

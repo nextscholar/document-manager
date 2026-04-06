@@ -14,6 +14,35 @@ const TABS = {
   IMAGES: 'images'
 }
 
+// Auth-aware image component — fetches via apiFetch so the
+// x-stack-access-token header is included, then renders a blob URL.
+function AuthImg({ src, alt, className, loading: loadingAttr }) {
+  const [blobUrl, setBlobUrl] = useState(null)
+
+  useEffect(() => {
+    if (!src) return
+    let objectUrl = null
+    let cancelled = false
+
+    apiFetch(src)
+      .then(r => (r.ok ? r.blob() : Promise.reject(r.status)))
+      .then(blob => {
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        setBlobUrl(objectUrl)
+      })
+      .catch(() => { /* leave blobUrl null on error */ })
+
+    return () => {
+      cancelled = true
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [src])
+
+  if (!blobUrl) return null
+  return <img src={blobUrl} alt={alt} className={className} loading={loadingAttr} />
+}
+
 // Skeleton loader
 const Skeleton = ({ width = '100%', height = '1rem' }) => (
   <div className={styles.skeleton} style={{ width, height }} />
@@ -237,7 +266,8 @@ function Browse() {
   // Lightbox
   const openLightbox = async (image) => {
     try {
-      const res = await fetch(`/api/images/${image.id}`)
+      const res = await apiFetch(`/api/images/${image.id}`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const fullImage = await res.json()
       setSelectedImage(fullImage)
       setLightboxOpen(true)
@@ -536,7 +566,7 @@ function Browse() {
                 >
                   <div className={styles.imageThumb}>
                     {image.thumbnail_path ? (
-                      <img 
+                      <AuthImg 
                         src={`/api/images/${image.id}/thumbnail`} 
                         alt={image.filename}
                         loading="lazy"
@@ -594,7 +624,7 @@ function Browse() {
             
             <div className={styles.lightboxMain}>
               <div className={styles.lightboxImage}>
-                <img 
+                <AuthImg 
                   src={`/api/images/${selectedImage.id}/full`} 
                   alt={selectedImage.filename}
                 />

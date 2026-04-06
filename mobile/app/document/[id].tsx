@@ -24,7 +24,7 @@ import Markdown from 'react-native-markdown-display';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
-import { getFile, getFileText, getFileMetadata, getFileContentUrl } from '../../src/api';
+import { getFile, getFileText, getFileMetadata, getFileContentUrl, authHeaders } from '../../src/api';
 import type { FileDetail, FileMetadata } from '../../src/types';
 
 const API_BASE = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000').replace(/\/$/, '');
@@ -146,6 +146,17 @@ export default function DocumentScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  const [imageHeaders, setImageHeaders] = useState<Record<string, string>>({});
+
+  // -------------------------------------------------------------------------
+  // Load auth headers for image requests
+  // -------------------------------------------------------------------------
+
+  useEffect(() => {
+    authHeaders().then(setImageHeaders).catch((err) => {
+      console.error('Failed to load auth headers for image:', err);
+    });
+  }, []);
 
   // -------------------------------------------------------------------------
   // Load file metadata
@@ -294,7 +305,7 @@ export default function DocumentScreen() {
       {file.is_image && (
         <View style={styles.imageCard}>
           <Image
-            source={{ uri: `${API_BASE}/images/${file.id}/full` }}
+            source={{ uri: `${API_BASE}/images/${file.id}/full`, headers: imageHeaders }}
             style={styles.imagePreview}
             resizeMode="contain"
             accessibilityLabel={file.filename}
