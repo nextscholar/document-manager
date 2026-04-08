@@ -20,12 +20,25 @@ from src.api.auth import get_current_user
 logger = logging.getLogger(__name__)
 
 
+# Module-level cache so the Reranker (and any loaded model weights) is only
+# instantiated once per backend type across all requests.
+_reranker_cache: dict = {}
+
+
+def _get_reranker(backend: str):
+    """Return a cached Reranker instance for *backend*, creating it on first use."""
+    if backend not in _reranker_cache:
+        from src.rag.search_engine import Reranker  # noqa: PLC0415
+        _reranker_cache[backend] = Reranker(backend=backend)
+    return _reranker_cache[backend]
+
+
 def _apply_reranker(query: str, entries: list) -> list:
     """
     Optionally rerank *entries* by relevance to *query* using the cross-encoder
     configured via the RERANKER_BACKEND environment variable.
 
-    Set RERANKER_BACKEND=ollama  to use sam860/qwen3-reranker via Ollama.
+    Set RERANKER_BACKEND=ollama to use sam860/qwen3-reranker via Ollama.
     Set RERANKER_BACKEND=huggingface to use the HuggingFace CrossEncoder.
     Leave unset (or set to "none") to skip reranking entirely.
 
@@ -36,13 +49,11 @@ def _apply_reranker(query: str, entries: list) -> list:
         return entries
 
     try:
-        from src.rag.search_engine import Reranker  # noqa: PLC0415
-
         passages = [
             {"text": e.entry_text or "", "entry_id": e.id}
             for e in entries
         ]
-        reranker = Reranker(backend=backend)
+        reranker = _get_reranker(backend)
         reranked = reranker.rerank(query, passages, top_n=len(passages))
         entry_map = {e.id: e for e in entries}
         return [entry_map[p["entry_id"]] for p in reranked if p["entry_id"] in entry_map]
