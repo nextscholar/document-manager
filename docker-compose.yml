@@ -71,6 +71,7 @@ services:
         echo "Pulling required models..."
         ollama pull nomic-embed-text
         ollama pull qwen2:1.5b
+        ollama pull sam860/qwen3-reranker:0.6b-F16
         echo "Models ready!"
     environment:
       OLLAMA_HOST: http://ollama:11434
@@ -97,6 +98,8 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2:1.5b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       EMBED_DIM: ${EMBED_DIM:-768}
+      RERANKER_BACKEND: ${RERANKER_BACKEND:-ollama}
+      RERANKER_MODEL: ${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}
     depends_on:
       db:
         condition: service_healthy
@@ -132,6 +135,8 @@ services:
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       EMBED_DIM: ${EMBED_DIM:-768}
       TIKA_URL: http://tika:9998
+      RERANKER_BACKEND: ${RERANKER_BACKEND:-ollama}
+      RERANKER_MODEL: ${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}
       STACK_PROJECT_ID: ${STACK_PROJECT_ID:-}
       STACK_SECRET_SERVER_KEY: ${STACK_SECRET_SERVER_KEY:-}
       STACK_API_URL: ${STACK_API_URL:-https://api.stack-auth.com}
