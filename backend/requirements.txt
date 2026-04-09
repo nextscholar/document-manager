@@ -38,6 +38,12 @@ numpy==2.3.5
 scikit-learn==1.8.0
 umap-learn==0.5.9.post2
 
+# Local embedding model (google/embeddinggemma-300m) and reranker
+# Install torch CPU-only to keep the image lean on CPU-only hosts:
+#   pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+# sentence-transformers pulls in torch automatically; pin a known-good version.
+sentence-transformers==3.4.1
+
 # Stack Auth JWT validation (see https://docs.stack-auth.com/concepts/backend-integration)
 PyJWT==2.12.0
 cryptography==46.0.5

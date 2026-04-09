@@ -2,6 +2,7 @@
 Search API Router
 Handles semantic search, RAG (ask/chat), and similarity calculations.
 """
+import logging
 import os
 import numpy as np
 from typing import Optional
@@ -15,6 +16,50 @@ from src.db.models import Entry, RawFile, LLMProvider
 from src.llm_client import embed_text, generate_text, MODEL, LLMClient
 from src.rag.search import search_entries_semantic, search_two_stage, embed_query
 from src.api.auth import get_current_user
+
+logger = logging.getLogger(__name__)
+
+
+# Module-level cache so the Reranker (and any loaded model weights) is only
+# instantiated once per backend type across all requests.
+_reranker_cache: dict = {}
+
+
+def _get_reranker(backend: str):
+    """Return a cached Reranker instance for *backend*, creating it on first use."""
+    if backend not in _reranker_cache:
+        from src.rag.search_engine import Reranker  # noqa: PLC0415
+        _reranker_cache[backend] = Reranker(backend=backend)
+    return _reranker_cache[backend]
+
+
+def _apply_reranker(query: str, entries: list) -> list:
+    """
+    Optionally rerank *entries* by relevance to *query* using the cross-encoder
+    configured via the RERANKER_BACKEND environment variable.
+
+    Set RERANKER_BACKEND=ollama to use sam860/qwen3-reranker via Ollama.
+    Set RERANKER_BACKEND=huggingface to use the HuggingFace CrossEncoder.
+    Leave unset (or set to "none") to skip reranking entirely.
+
+    Falls back gracefully to the original order on any error.
+    """
+    backend = os.getenv("RERANKER_BACKEND", "none")
+    if not entries or backend == "none":
+        return entries
+
+    try:
+        passages = [
+            {"text": e.entry_text or "", "entry_id": e.id}
+            for e in entries
+        ]
+        reranker = _get_reranker(backend)
+        reranked = reranker.rerank(query, passages, top_n=len(passages))
+        entry_map = {e.id: e for e in entries}
+        return [entry_map[p["entry_id"]] for p in reranked if p["entry_id"] in entry_map]
+    except Exception as exc:
+        logger.warning("Reranking failed, using original order: %s", exc)
+        return entries
 
 
 def _get_cloud_client(db: Session, model_str: Optional[str]):
@@ -127,7 +172,10 @@ def ask(request: AskRequest, db: Session = Depends(get_db), user_id: Optional[st
         mode=search_mode,
         vector_weight=vector_weight
     )
-    
+
+    # Optional cross-encoder reranking (enabled via RERANKER_BACKEND env var)
+    results = _apply_reranker(request.query, results)
+
     if not results:
         return AskResponse(
             answer="I couldn't find any relevant documents in the archive.", 
@@ -324,10 +372,13 @@ def search_two_stage_endpoint(
         stage1_docs=request.stage1_docs,
         filters=filters
     )
-    
+
+    # Optional cross-encoder reranking (enabled via RERANKER_BACKEND env var)
+    raw_entries = _apply_reranker(request.query, result.get('entries', []))
+
     # Serialize entries
     entries = []
-    for entry in result.get('entries', []):
+    for entry in raw_entries:
         entries.append({
             "id": entry.id,
             "title": entry.title,

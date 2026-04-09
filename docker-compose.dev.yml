@@ -103,6 +103,7 @@ services:
         echo "Pulling required models for dev environment..."
         ollama pull nomic-embed-text
         ollama pull qwen2:1.5b
+        ollama pull sam860/qwen3-reranker:0.6b-F16
         echo "Dev models ready!"
     environment:
       - OLLAMA_HOST=ollama-dev:11434
@@ -132,7 +133,10 @@ services:
       - OLLAMA_URL=http://ollama-dev:11434
       - OLLAMA_MOCK=${OLLAMA_MOCK:-false}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2:1.5b}
+      - CHAT_MODEL=${CHAT_MODEL:-gemma4:e2b}
       - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - RERANKER_BACKEND=${RERANKER_BACKEND:-ollama}
+      - RERANKER_MODEL=${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}
     depends_on:
       ollama-dev:
         condition: service_healthy
@@ -177,7 +181,10 @@ services:
       - OLLAMA_URL=http://ollama-dev:11434
       - OLLAMA_MOCK=${OLLAMA_MOCK:-false}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2:1.5b}
+      - CHAT_MODEL=${CHAT_MODEL:-gemma4:e2b}
       - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
+      - RERANKER_BACKEND=${RERANKER_BACKEND:-ollama}
+      - RERANKER_MODEL=${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}
       - STACK_PROJECT_ID=${STACK_PROJECT_ID:-}
       - STACK_SECRET_SERVER_KEY=${STACK_SECRET_SERVER_KEY:-}
       - STACK_API_URL=${STACK_API_URL:-https://api.stack-auth.com}
