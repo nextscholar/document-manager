@@ -59,9 +59,7 @@ export default function ModelsTab({
   }, [llmSettings])
 
   useEffect(() => {
-    if (providers.filter(p => p.provider_type === 'ollama' && p.status === 'online').length > 0) {
-      loadOllamaModels()
-    }
+    loadOllamaModels()
   }, [providers])
 
   const loadOllamaModels = async () => {
@@ -78,6 +76,25 @@ export default function ModelsTab({
           })))
         }
       }
+
+      // If no models from registered servers, query Ollama directly via system status
+      if (allModels.length === 0) {
+        try {
+          const res = await fetch(`${API_BASE}/system/status`)
+          if (res.ok) {
+            const data = await res.json()
+            const systemModels = data.ollama?.available_models || []
+            allModels.push(...systemModels.map(m => ({
+              name: typeof m === 'string' ? m : (m.name || String(m)),
+              server: 'Ollama',
+              serverId: null
+            })))
+          }
+        } catch (err) {
+          console.error('Failed to fetch models from system status:', err)
+        }
+      }
+
       setOllamaModels(allModels)
     } catch (err) {
       console.error('Failed to load Ollama models:', err)

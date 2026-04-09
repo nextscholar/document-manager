@@ -95,14 +95,25 @@ async def set_single_setting(key: str, value: Any, db: Session = Depends(get_db)
 
 @router.get("/settings/env-overrides")
 async def get_env_overrides():
-    """Get settings that are overridden by environment variables."""
-    overrides = {}
-    env_keys = ["OLLAMA_URL", "OLLAMA_MODEL", "EMBEDDING_MODEL", "DB_HOST", "DB_PORT"]
-    
-    for key in env_keys:
-        if key in os.environ:
-            overrides[key] = os.environ[key]
-    
+    """Get settings that are overridden by environment variables.
+
+    Returns a map from frontend field names to lock metadata so the UI
+    can mark env-controlled fields as read-only.
+    """
+    overrides: dict = {}
+
+    # chatModel: CHAT_MODEL takes priority; OLLAMA_MODEL is the legacy override
+    if os.environ.get("CHAT_MODEL"):
+        overrides["chatModel"] = {"isLocked": True, "envVar": "CHAT_MODEL", "value": os.environ["CHAT_MODEL"]}
+    elif os.environ.get("OLLAMA_MODEL"):
+        overrides["chatModel"] = {"isLocked": True, "envVar": "OLLAMA_MODEL", "value": os.environ["OLLAMA_MODEL"]}
+
+    if os.environ.get("OLLAMA_EMBEDDING_MODEL"):
+        overrides["embedModel"] = {"isLocked": True, "envVar": "OLLAMA_EMBEDDING_MODEL", "value": os.environ["OLLAMA_EMBEDDING_MODEL"]}
+
+    if os.environ.get("OLLAMA_VISION_MODEL"):
+        overrides["visionModel"] = {"isLocked": True, "envVar": "OLLAMA_VISION_MODEL", "value": os.environ["OLLAMA_VISION_MODEL"]}
+
     return {"overrides": overrides, "count": len(overrides)}
 
 
@@ -128,7 +139,23 @@ async def update_extensions(data: ExtensionsUpdate, db: Session = Depends(get_db
 async def get_llm_settings(db: Session = Depends(get_db)):
     """Get LLM configuration settings."""
     llm_settings = get_setting(db, "llm") or {}
-    
+
+    # Apply env var overrides so the UI reflects the actual active model.
+    # Env vars take precedence: CHAT_MODEL (PR #48) > OLLAMA_MODEL > DB value.
+    ollama_cfg = dict(llm_settings.get("ollama") or {})
+    if os.environ.get("OLLAMA_MODEL"):
+        ollama_cfg["model"] = os.environ["OLLAMA_MODEL"]
+    elif os.environ.get("CHAT_MODEL"):
+        ollama_cfg["model"] = os.environ["CHAT_MODEL"]
+    if os.environ.get("OLLAMA_EMBEDDING_MODEL"):
+        ollama_cfg["embedding_model"] = os.environ["OLLAMA_EMBEDDING_MODEL"]
+    if os.environ.get("OLLAMA_VISION_MODEL"):
+        ollama_cfg["vision_model"] = os.environ["OLLAMA_VISION_MODEL"]
+    if os.environ.get("OLLAMA_URL"):
+        ollama_cfg["url"] = os.environ["OLLAMA_URL"]
+    if ollama_cfg:
+        llm_settings = {**llm_settings, "ollama": ollama_cfg}
+
     # Mask API keys for all providers
     for provider_key in ("openai", "anthropic", "qwen", "deepseek", "zhipu"):
         provider_cfg = llm_settings.get(provider_key, {})
