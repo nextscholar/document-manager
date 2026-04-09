@@ -93,7 +93,6 @@ export default function ModelsTab({
               return { name, server: 'Ollama', serverId: null }
             }).filter(Boolean))
           }
-          }
         } catch (err) {
           console.error('Failed to fetch models from system status:', err)
         }
