@@ -108,7 +108,7 @@ DEFAULT_SETTINGS = {
         "provider": "ollama",  # ollama, openai, anthropic, qwen, deepseek, zhipu
         "ollama": {
             "url": "http://ollama:11434",
-            "model": "dolphin-phi",
+            "model": "gemma4:e2b",
             "embedding_model": "nomic-embed-text",
             "vision_model": "llava"
         },
@@ -287,6 +287,9 @@ def get_llm_config(db: Session) -> Union[OllamaConfig, OpenAIConfig, AnthropicCo
             config["url"] = os.environ["OLLAMA_URL"]
         if os.environ.get("OLLAMA_MODEL"):
             config["model"] = os.environ["OLLAMA_MODEL"]
+        elif os.environ.get("CHAT_MODEL"):
+            # CHAT_MODEL (added by PR #48) is the canonical chat/RAG model override
+            config["model"] = os.environ["CHAT_MODEL"]
         if os.environ.get("OLLAMA_EMBEDDING_MODEL"):
             config["embedding_model"] = os.environ["OLLAMA_EMBEDDING_MODEL"]
         if os.environ.get("OLLAMA_VISION_MODEL"):

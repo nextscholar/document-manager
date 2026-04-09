@@ -19,6 +19,10 @@ from src.api.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
+# Respect CHAT_MODEL env var (set by PR #48) as the canonical chat model.
+# Falls back to OLLAMA_MODEL / llama3 for backward-compatibility.
+_CHAT_MODEL: str = os.getenv("CHAT_MODEL") or MODEL
+
 
 # Module-level cache so the Reranker (and any loaded model weights) is only
 # instantiated once per backend type across all requests.
@@ -242,7 +246,7 @@ Question: {request.query}
 """
 
     # 4. Generate
-    model_to_use = request.model if request.model else MODEL
+    model_to_use = request.model if request.model else _CHAT_MODEL
     answer = generate_text(prompt, model=model_to_use)
     
     if not answer:
@@ -272,7 +276,7 @@ def chat(request: ChatRequest):
     prompt = "\n\n".join(prompt_parts)
     
     # Use requested model or default
-    model_to_use = request.model if request.model else MODEL
+    model_to_use = request.model if request.model else _CHAT_MODEL
     response = generate_text(prompt, model=model_to_use)
     
     if not response:
