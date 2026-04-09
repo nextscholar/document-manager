@@ -133,6 +133,7 @@ services:
       - OLLAMA_URL=http://ollama-dev:11434
       - OLLAMA_MOCK=${OLLAMA_MOCK:-false}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2:1.5b}
+      - CHAT_MODEL=${CHAT_MODEL:-gemma4:e2b}
       - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       - RERANKER_BACKEND=${RERANKER_BACKEND:-ollama}
       - RERANKER_MODEL=${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}
@@ -180,6 +181,7 @@ services:
       - OLLAMA_URL=http://ollama-dev:11434
       - OLLAMA_MOCK=${OLLAMA_MOCK:-false}
       - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2:1.5b}
+      - CHAT_MODEL=${CHAT_MODEL:-gemma4:e2b}
       - OLLAMA_EMBEDDING_MODEL=${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       - RERANKER_BACKEND=${RERANKER_BACKEND:-ollama}
       - RERANKER_MODEL=${RERANKER_MODEL:-sam860/qwen3-reranker:0.6b-F16}

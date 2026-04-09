@@ -96,6 +96,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MOCK: ${OLLAMA_MOCK:-false}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2:1.5b}
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       EMBED_DIM: ${EMBED_DIM:-768}
       RERANKER_BACKEND: ${RERANKER_BACKEND:-ollama}
@@ -132,6 +133,7 @@ services:
       OLLAMA_URL: http://ollama:11434
       OLLAMA_MOCK: ${OLLAMA_MOCK:-false}
       OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2:1.5b}
+      CHAT_MODEL: ${CHAT_MODEL:-gemma4:e2b}
       OLLAMA_EMBEDDING_MODEL: ${OLLAMA_EMBEDDING_MODEL:-nomic-embed-text}
       EMBED_DIM: ${EMBED_DIM:-768}
       TIKA_URL: http://tika:9998
