@@ -84,11 +84,15 @@ export default function ModelsTab({
           if (res.ok) {
             const data = await res.json()
             const systemModels = data.ollama?.available_models || []
-            allModels.push(...systemModels.map(m => ({
-              name: typeof m === 'string' ? m : (m.name || String(m)),
-              server: 'Ollama',
-              serverId: null
-            })))
+            allModels.push(...systemModels.map(m => {
+              const name = typeof m === 'string' ? m : (m.name || null)
+              if (!name) {
+                console.warn('Unexpected model entry format from system/status:', m)
+                return null
+              }
+              return { name, server: 'Ollama', serverId: null }
+            }).filter(Boolean))
+          }
           }
         } catch (err) {
           console.error('Failed to fetch models from system status:', err)

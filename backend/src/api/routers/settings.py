@@ -100,7 +100,7 @@ async def get_env_overrides():
     Returns a map from frontend field names to lock metadata so the UI
     can mark env-controlled fields as read-only.
     """
-    overrides: dict = {}
+    overrides: Dict[str, Any] = {}
 
     # chatModel: CHAT_MODEL takes priority; OLLAMA_MODEL is the legacy override
     if os.environ.get("CHAT_MODEL"):
